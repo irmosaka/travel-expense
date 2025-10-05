@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>دستیار مالی</br>سفرهــــــای خارجی</title>
+    <title>دستیار مالی سفرهــــــای خارجی</title>
     <!-- PWA Basic Metadata (Necessary for home screen shortcut) -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -292,7 +292,7 @@
             return (
                 <Dialog title={initialName ? "تغییر نام سفر" : "ثبت سفر جدید"} onClose={onClose}>
                     <div className="space-y-4">
-                        <Input label="نام سفر" value={name} onChange={e => setName(e.target.value)} placeholder="مثال: سفر پکن ۹۹" />
+                        <Input label="نام سفر" value={name} onChange={e => setName(e.target.value)} placeholder="مثال: سفر شنزن 1404" />
                         
                         {!initialName && (
                             <>
@@ -323,7 +323,7 @@
                                     type="number" 
                                     value={budget} 
                                     onChange={e => setBudget(e.target.value)} 
-                                    placeholder="مثال: 2000"
+                                    placeholder="مثال: 4000"
                                     inputMode="decimal"
                                 />
                             </>
@@ -383,7 +383,7 @@
                             </select>
                         </div>
 
-                        <Input label="شرح هزینه" value={description} onChange={e => setDescription(e.target.value)} placeholder="مثال: ناهار سلف سرویس" />
+                        <Input label="شرح هزینه" value={description} onChange={e => setDescription(e.target.value)} placeholder="مثال: ناهار KFC" />
 
                         <div>
                             <Label htmlFor="amount">مبلغ</Label>
@@ -490,7 +490,7 @@
 
             return (
                 <div 
-                    className="fixed inset-0 z-50 flex flex-col items-center justify-center transition-opacity duration-1000"
+                    className="fixed inset-0 z-50 flex flex-col items-center justify-center transition-opacity duration-4000"
                     style={{ 
                         background: 'linear-gradient(135deg, #007AFF 0%, #005BBF 100%)', 
                         opacity: isVisible ? 1 : 0
@@ -498,13 +498,12 @@
                 >
                     <div className="text-center text-white p-6 rounded-xl animate-pulse">
                         <h1 className="text-4xl font-extrabold mb-3 shadow-lg">
-                            ✈️ دستیار مالی سفر
+                            ✈️ دستیار مالی</br>سفرهــــــای خارجی
+                    </br>
+                    نوشته شده با ❤️ توسط محمد صادقی کاجی
                         </h1>
-                        <p className="text-xl font-light opacity-80 mt-6">
-                            Vazirmatn & iOS Style
-                        </p>
                         <p className="text-xs mt-10 opacity-70">
-                            (ذخیره محلی در مرورگر شما)
+                            !! ذخیره محلی در مرورگر شما !!
                         </p>
                     </div>
                 </div>
