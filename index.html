@@ -946,7 +946,31 @@
 
   {/* wrapper with LTR to keep sun on left and moon on right regardless of page RTL */}
   <div className="flex items-center gap-3" dir="ltr">
-    {/* Sun (روشن) */}
+
+      {/* Moon (تاریک) */}
+    <button
+      type="button"
+      onClick={() => onThemeChange('dark')}
+      aria-label="تاریک"
+      className="text-gray-400 text-lg focus:outline-none"
+    >
+      🌙
+    </button>
+
+      {/* Track */}
+      <div
+        className="w-14 h-7 bg-gray-200 rounded-full peer-checked:bg-green-500 
+                   transition-colors duration-300 flex-shrink-0"
+        aria-hidden="true"
+      ></div>
+
+      {/* Thumb: توجه — جهت حرکت برعکس شده */}
+      <span
+        className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow transform transition-transform duration-300
+          ${theme === 'dark' ? 'translate-x-7' : 'translate-x-0'}`}
+      ></span>
+    </label>
+{/* Sun (روشن) */}
     <button
       type="button"
       onClick={() => onThemeChange('light')}
@@ -964,30 +988,7 @@
         className="sr-only peer"
         aria-label="تغییر حالت شب"
       />
-
-      {/* Track */}
-      <div
-        className="w-14 h-7 bg-gray-200 rounded-full peer-checked:bg-green-500 
-                   transition-colors duration-300 flex-shrink-0"
-        aria-hidden="true"
-      ></div>
-
-      {/* Thumb: توجه — جهت حرکت برعکس شده */}
-      <span
-        className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow transform transition-transform duration-300
-          ${theme === 'dark' ? 'translate-x-7' : 'translate-x-0'}`}
-      ></span>
-    </label>
-
-    {/* Moon (تاریک) */}
-    <button
-      type="button"
-      onClick={() => onThemeChange('dark')}
-      aria-label="تاریک"
-      className="text-gray-400 text-lg focus:outline-none"
-    >
-      🌙
-    </button>
+    
   </div>
 </div>
 
