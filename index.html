@@ -941,7 +941,7 @@
                     <div className={`${COLORS.secondaryBg} p-4 rounded-xl shadow-md space-y-3 border ${COLORS.separator}`}>
                         <h3 className="text-lg font-bold border-b pb-2">تنظیمات تم</h3>
                         
-                     <div className="flex justify-between items-center py-2">
+                    <div className="flex justify-between items-center py-2">
   <span className="font-medium">حالت شب (Dark Mode)</span>
 
   <div className="flex items-center gap-3" dir="ltr">
@@ -955,11 +955,14 @@
       🌙
     </button>
 
+    {/* Switch */}
     <label className="relative inline-flex items-center cursor-pointer">
       <input
         type="checkbox"
         checked={theme === 'dark'}
-        onChange={() => onThemeChange(theme === 'dark' ? 'light' : 'dark')}
+        onChange={() =>
+          onThemeChange(theme === 'dark' ? 'light' : 'dark')
+        }
         className="sr-only peer"
         aria-label="تغییر حالت شب"
       />
@@ -971,7 +974,7 @@
         aria-hidden="true"
       ></div>
 
-      {/* Thumb: الان دارک = راست، لایت = چپ */}
+      {/* Thumb */}
       <span
         className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow transform transition-transform duration-300
           ${theme === 'dark' ? 'translate-x-7' : 'translate-x-0'}`}
@@ -989,6 +992,7 @@
     </button>
   </div>
 </div>
+
 
                         <div className="flex items-center pt-2 border-t ${COLORS.separator}">
                             <input 
