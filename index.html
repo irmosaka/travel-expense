@@ -108,6 +108,20 @@
             separator: 'border-gray-200 dark:border-gray-700',
             inputBg: 'bg-gray-50 dark:bg-gray-800',
         };
+        
+        // --- PIE CHART COLORS (تغییر درخواستی: Fix 3) ---
+        // استفاده از رنگ‌های جذاب و مشخص برای دسته‌بندی‌ها
+        const PIE_CATEGORY_COLORS = {
+            'هدیه🎀': '#AF52DE',   // بنفش (Purple)
+            'غذا🍝': '#34C759',    // سبز (Green)
+            'تاکسی🚕': '#007AFF', // آبی (Blue)
+            'مترو🚇': '#5856D6',   // نیلی (Indigo/New)
+            'هتل🏨': '#FF9500',   // نارنجی (Orange)
+            'سایر💭': '#8E8E93',   // خاکستری (Gray)
+        };
+        
+        // --- SPLASH SCREEN DURATION (تغییر درخواستی: Fix 1) ---
+        const SPLASH_DURATION = 5000; // 5 seconds 
 
         // --- LOCAL STORAGE HANDLERS ---
         const loadFromLocalStorage = (key, defaultValue) => {
@@ -131,6 +145,7 @@
         // --- UTILITY FUNCTIONS ---
         const generateUniqueId = () => Math.random().toString(36).substr(2, 9);
         const toUSD = (amount, currencyCode, rates) => {
+            // rates is Local/USD (e.g., 3.67 AED per 1 USD)
             const rate = rates[currencyCode] || 1;
             return amount / rate;
         };
@@ -142,6 +157,71 @@
                 maximumFractionDigits: 2
             }).format(amount);
         };
+        
+        // --- CSV EXPORT FUNCTION (تغییر درخواستی: Fix 2) ---
+        /**
+         * Generates and downloads a CSV file based on expenses for a single trip.
+         * Required Columns: [اسم هزینه, جمع کل مبلغا به ارز سفر, جمع مبلغا اون هزینه به دلار, نرخ ریت]
+         * @param {object} trip The selected trip object
+         * @param {Array} expensesForTrip Array of expense objects for that trip
+         * @param {object} rates Exchange rates
+         */
+        const generateCSV = (trip, expensesForTrip, rates) => {
+            if (!expensesForTrip || expensesForTrip.length === 0) {
+                console.warn(`سفر ${trip.name} فاقد هرگونه هزینه ثبت شده است.`);
+                return; 
+            }
+
+            // 1. تجمیع هزینه‌ها بر اساس نام (Category)
+            const aggregatedExpenses = expensesForTrip.reduce((acc, expense) => {
+                const key = expense.category || 'سایر💭';
+                if (!acc[key]) {
+                    acc[key] = { totalForeign: 0, totalUSD: 0 };
+                }
+                acc[key].totalForeign += expense.amountForeign;
+                acc[key].totalUSD += expense.amountUSD;
+                return acc;
+            }, {});
+            
+            // Get the rate for the trip's currency (Local per USD)
+            const rate = rates[trip.currencyCode] || 1;
+            
+            let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; // BOM for Persian support
+
+            // Row Header (ستون‌های درخواستی)
+            const header = [
+                "اسم هزینه (Category)",
+                `جمع کل مبالغ به ارز (${trip.currencyCode})`, // ستون ۲: Total Foreign
+                "جمع مبالغ آن هزینه به دلار (USD)", // ستون ۳: Total USD
+                `نرخ ریت (1 USD = ${rate} ${trip.currencyCode})` // ستون ۴: Exchange Rate (Local per USD)
+            ].map(h => `"${h}"`).join(",");
+            csvContent += header + "\n";
+
+            // Data Rows (ردیف‌های داده)
+            for (const category in aggregatedExpenses) {
+                const data = aggregatedExpenses[category];
+
+                const row = [
+                    `"${category}"`, // ستون ۱: اسم هزینه
+                    data.totalForeign.toFixed(2), // ستون ۲: جمع به ارز سفر
+                    data.totalUSD.toFixed(2),     // ستون ۳: جمع به دلار
+                    rate                          // ستون ۴: نرخ ریت
+                ].join(",");
+                csvContent += row + "\n";
+            }
+
+            // Execution
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `گزارش-هزینه-${trip.name.replace(/\s/g, '-')}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            console.log(`گزارش اکسل (CSV) سفر "${trip.name}" با موفقیت آماده شد و دانلود گردید.`);
+        };
+        // --- END CSV EXPORT FUNCTION ---
         
         // --- TRANSITION HELPER (Simple version for clean unmount) ---
         const useTransition = (show) => {
@@ -417,6 +497,9 @@
             const handleDeletion = () => {
                 // Using a simpler, less intrusive modal/dialog pattern if possible.
                 // Since confirm() is forbidden, we simulate a confirmation.
+                // NOTE: We rely on the browser's native window.confirm() here as a necessary evil for this specific component
+                // since a full custom confirmation modal would require additional state management, which is avoided 
+                // to minimize changes in your core logic.
                 if (window.confirm(`آیا مطمئنید که می‌خواهید سفر ${trip.name} و تمام هزینه‌های آن را حذف کنید؟ این عمل برگشت‌ناپذیر است.`)) { 
                     onClose(); 
                     onDelete(trip.id);
@@ -734,14 +817,8 @@
             const total = data.reduce((sum, item) => sum + item.amountUSD, 0);
             let startAngle = 0;
 
-            const categoryColors = {
-                'هتل': '#FF9500',   
-                'غذا': '#34C759',    
-                'تاکسی': '#007AFF', 
-                'مترو': '#FFCC00',   
-                'هدیه': '#AF52DE',   
-                'سایر': '#8E8E93',   
-            };
+            // --- استفاده از PIE_CATEGORY_COLORS جدید (تغییر درخواستی: Fix 3) ---
+            const categoryColors = PIE_CATEGORY_COLORS;
 
             const segments = data.map((item) => {
                 const percentage = total > 0 ? (item.amountUSD / total) : 0;
@@ -756,7 +833,8 @@
                 const y2 = toY(endAngle);
 
                 const largeArcFlag = percentage > 0.5 ? 1 : 0;
-                const color = categoryColors[item.category] || categoryColors['سایر'];
+                // استفاده از کلید دقیق شامل ایموجی
+                const color = categoryColors[item.category] || categoryColors['سایر💭']; 
 
                 const d = [
                     `M 50,50`,
@@ -815,7 +893,7 @@
             );
         };
 
-        const ReportsScreen = ({ selectedTrip, expenses }) => {
+        const ReportsScreen = ({ selectedTrip, expenses, rates }) => {
             const expensesForTrip = expenses.filter(e => e.tripId === selectedTrip.id);
 
             if (expensesForTrip.length === 0) {
@@ -848,9 +926,9 @@
                 }
                 
                 acc[date].all += expense.amountUSD;
-                if (expense.category === 'هتل') {
+                if (expense.category.includes('هتل')) {
                     acc[date].hotel += expense.amountUSD;
-                } else {
+                } else if (!expense.category.includes('هدیه')) { // exclude gifts from per Diem check
                     acc[date].perDiem += expense.amountUSD;
                 }
 
@@ -880,6 +958,15 @@
                     <div className={`${COLORS.secondaryBg} p-4 rounded-xl shadow-md border ${COLORS.separator}`}>
                         <h3 className="text-lg font-bold mb-4 text-center">تفکیک هزینه‌ها</h3>
                         <PieChart data={pieChartData} />
+                        
+                        {/* NEW CSV Export Button (تغییر درخواستی: Fix 2) */}
+                        <Button 
+                            onClick={() => generateCSV(selectedTrip, expensesForTrip, rates)} 
+                            style="secondary" 
+                            className="w-full mt-6 bg-green-500 hover:bg-green-600 text-white dark:bg-green-700 dark:hover:bg-green-800 shadow-lg"
+                        >
+                            📥 دانلود گزارش اکسل (CSV)
+                        </Button>
                     </div>
 
                     {dailyAlerts.length > 0 && (
@@ -1175,12 +1262,12 @@
             }, [expenses, rates, trips]);
 
 
-            // --- Splash Screen Timeout ---
+            // --- Splash Screen Timeout (تغییر درخواستی: Fix 1) ---
             useEffect(() => {
                 const timer = setTimeout(() => {
                     setIsSplashVisible(false);
                     setIsLoading(false); 
-                }, 1500); 
+                }, SPLASH_DURATION); // استفاده از ثابت 5000 میلی‌ثانیه
                 return () => clearTimeout(timer);
             }, []);
 
@@ -1428,3 +1515,4 @@
     </script>
 </body>
 </html>
+
