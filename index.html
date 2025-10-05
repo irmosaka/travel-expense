@@ -3,17 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>دستیار مالی سفرهای خارجی - ذخیره محلی</title>
+    <title>دستیار مالی سفرهای خارجی</title>
     <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Load Vazirmatn Font -->
+    <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
+
     <script>
         tailwind.config = {
             darkMode: 'class', // Enable dark mode based on the 'dark' class
             theme: {
                 extend: {
                     fontFamily: {
-                        sans: ['Inter', 'Tahoma', 'sans-serif'],
+                        sans: ['Vazirmatn', 'Inter', 'Tahoma', 'sans-serif'],
                     },
+                    colors: {
+                        'ios-blue': '#007AFF',
+                        'ios-red': '#FF3B30',
+                        'ios-fill': '#EFEFF4',
+                        'ios-dark-fill': '#2C2C2E',
+                    }
                 }
             }
         }
@@ -24,14 +34,33 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
     <style>
-        /* Base styling for the app - better mobile experience */
+        /* Base styling for the app (iOS aesthetic) */
         body {
             margin: 0;
             padding: 0;
-            background-color: #f7f9fc; /* Light background for non-dark mode */
+            background-color: #f2f2f7; /* iOS Light Background */
         }
         .dark body {
-            background-color: #0f172a; /* Slate-900 for dark mode */
+            background-color: #1c1c1e; /* iOS Dark Background */
+        }
+        
+        /* Custom styles for FAB Menu Transition */
+        .fab-menu-enter {
+            opacity: 0;
+            transform: translateY(10px) scale(0.95);
+        }
+        .fab-menu-enter-active {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+            transition: opacity 200ms ease-out, transform 200ms ease-out;
+        }
+        .fab-menu-exit {
+            opacity: 1;
+        }
+        .fab-menu-exit-active {
+            opacity: 0;
+            transform: translateY(10px) scale(0.95);
+            transition: opacity 150ms ease-in, transform 150ms ease-in;
         }
     </style>
 </head>
@@ -40,8 +69,8 @@
 
     <script type="text/babel">
         // Global dependencies are available via window object (React, ReactDOM)
-        // We use window.localStorage directly.
-
+        const { useState, useEffect, useMemo, useCallback } = React;
+        
         // --- CONSTANTS ---
         const LS_KEY_TRIPS = 'expenseTracker_trips';
         const LS_KEY_EXPENSES = 'expenseTracker_expenses';
@@ -53,19 +82,20 @@
             'ترکیه': { code: 'TRY', symbol: '₺', flag: '🇹🇷', defaultRate: 41.69 },
         };
 
-        const EXPENSE_CATEGORIES = ['هدیه', 'غذا', 'تاکسی', 'مترو', 'هتل'];
+        const EXPENSE_CATEGORIES = ['هدیه', 'غذا', 'تاکسی', 'مترو', 'هتل', 'سایر'];
 
-        // Color Palette for charts and overall theme
+        // Color Palette (iOS Inspired)
         const COLORS = {
-            primary: 'bg-blue-600 hover:bg-blue-700',
+            primary: 'bg-ios-blue hover:bg-blue-600',
             primaryText: 'text-white',
-            secondaryBg: 'bg-gray-100 dark:bg-gray-800',
-            tertiaryBg: 'bg-white dark:bg-gray-900',
+            secondaryBg: 'bg-white dark:bg-ios-dark-fill', 
+            tertiaryBg: 'bg-white dark:bg-[#1C1C1E]', // Darker background for main containers
             lightText: 'text-gray-900 dark:text-gray-100',
             mutedText: 'text-gray-500 dark:text-gray-400',
-            danger: 'text-red-500',
-            warning: 'bg-red-100 dark:bg-red-800',
-            gaugeTrack: 'bg-gray-300 dark:bg-gray-700',
+            dangerBg: 'bg-ios-red',
+            dangerText: 'text-ios-red dark:text-red-400',
+            separator: 'border-gray-200 dark:border-gray-700',
+            inputBg: 'bg-gray-50 dark:bg-gray-800',
         };
 
         // --- LOCAL STORAGE HANDLERS ---
@@ -87,124 +117,59 @@
             }
         };
 
-
         // --- UTILITY FUNCTIONS ---
         const generateUniqueId = () => Math.random().toString(36).substr(2, 9);
         const toUSD = (amount, currencyCode, rates) => {
             const rate = rates[currencyCode] || 1;
             return amount / rate;
         };
-        // Removed fromUSD as it's not used in current logic
-
-        // --- REACT COMPONENTS (All components from previous version are copied here) ---
-        // I will only include the core components and handlers that changed (App, HomeScreen, etc.)
-        // and assume all sub-components (Dialog, Input, GaugeChart, etc.) are included here for brevity.
+        const formatCurrency = (amount) => {
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD',
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(amount);
+        };
         
-        // 1. SplashScreen
-        const SplashScreen = ({ isVisible }) => {
-            if (!isVisible) return null;
+        // --- TRANSITION HELPER (Simple version for clean unmount) ---
+        const useTransition = (show) => {
+            const [shouldRender, setShouldRender] = useState(show);
+            const [className, setClassName] = useState(show ? 'fab-menu-enter-active' : '');
 
-            return (
+            useEffect(() => {
+                if (show) {
+                    setShouldRender(true);
+                    setTimeout(() => setClassName('fab-menu-enter-active'), 10);
+                } else {
+                    setClassName('fab-menu-exit-active');
+                    const timeout = setTimeout(() => setShouldRender(false), 200);
+                    return () => clearTimeout(timeout);
+                }
+            }, [show]);
+
+            return { shouldRender, className };
+        };
+
+
+        // --- UI COMPONENTS ---
+
+        const Dialog = ({ title, children, onClose, className = '' }) => (
+            <div 
+                className="fixed inset-0 bg-black bg-opacity-30 z-50 flex items-center justify-center p-4 backdrop-blur-sm" 
+                onClick={onClose}
+            >
                 <div 
-                    className="fixed inset-0 z-50 flex flex-col items-center justify-center transition-opacity duration-1000"
-                    style={{ 
-                        background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)', // Blue to Navy Gradient
-                        opacity: isVisible ? 1 : 0
-                    }}
-                >
-                    <div className="text-center text-white p-6 rounded-xl animate-pulse">
-                        <h1 className="text-4xl font-extrabold mb-3 shadow-lg">
-                            دستیار مالی سفرهای خارجی
-                        </h1>
-                        <p className="text-xl font-light opacity-80 mt-6">
-                            نوشته شده با ❤️ توسط محمد صادقی کاجی
-                        </p>
-                        <p className="text-xs mt-10 opacity-70">
-                            (ذخیره اطلاعات به صورت محلی در مرورگر شما)
-                        </p>
-                    </div>
-                </div>
-            );
-        };
-
-        // 2. NavItem and NavBar (Unchanged except for the removed authReady logic)
-        const NavItem = ({ name, screen, icon, currentScreen, onNavigate, enabled }) => {
-            const isActive = currentScreen === screen;
-            const isDisabled = !enabled;
-
-            return (
-                <button
-                    onClick={() => !isDisabled && onNavigate(screen)}
-                    disabled={isDisabled}
-                    className={`
-                        flex flex-col items-center text-xs p-1 h-full transition-colors duration-200
-                        ${isDisabled 
-                            ? 'text-gray-400 dark:text-gray-600 cursor-not-allowed' 
-                            : (isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300 hover:text-blue-500 dark:hover:text-blue-300')
-                        }
-                    `}
-                >
-                    <span className="text-xl mb-0.5">{icon}</span>
-                    <span className="font-medium">{name}</span>
-                </button>
-            );
-        };
-
-        const NavBar = ({ currentScreen, onNavigate, selectedTrip }) => {
-            const isTripSelected = !!selectedTrip;
-
-            const navItems = [
-                { name: 'خانه', screen: 'home', icon: '🏠', enabled: true },
-                { name: 'گزارشات', screen: 'reports', icon: '📊', enabled: isTripSelected },
-                { name: 'تنظیمات', screen: 'settings', icon: '⚙️', enabled: isTripSelected },
-                { name: 'درباره', screen: 'about', icon: 'ℹ️', enabled: true },
-            ];
-
-            const PlusButton = () => (
-                <button
-                    onClick={() => onNavigate('plus')}
-                    className={`
-                        ${COLORS.primary} w-16 h-16 rounded-full -mt-8 shadow-xl 
-                        flex items-center justify-center text-3xl transition-transform
-                        transform hover:scale-105 active:scale-95 z-20 
-                        ${COLORS.primaryText}
-                    `}
-                    aria-label={isTripSelected ? "ثبت هزینه جدید" : "ثبت سفر جدید"}
-                >
-                    ➕
-                </button>
-            );
-
-            return (
-                <nav className={`${COLORS.tertiaryBg} shadow-2xl fixed bottom-0 left-0 right-0 z-40 border-t border-gray-200 dark:border-gray-700 h-16`}>
-                    <div className="flex justify-around items-end h-full pt-2">
-                        {navItems.slice(0, 1).map(item => (
-                            <NavItem key={item.name} {...item} currentScreen={currentScreen} onNavigate={onNavigate} />
-                        ))}
-                        <PlusButton />
-                        {navItems.slice(1).map(item => (
-                            <NavItem key={item.name} {...item} currentScreen={currentScreen} onNavigate={onNavigate} />
-                        ))}
-                    </div>
-                </nav>
-            );
-        };
-
-        // 3. Utility Components (Dialog, Input, Button) - Unchanged
-
-        const Dialog = ({ title, children, onClose }) => (
-            <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onClick={onClose}>
-                <div 
-                    className={`${COLORS.tertiaryBg} rounded-xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all`} 
+                    className={`${COLORS.secondaryBg} rounded-xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all ${className}`} 
                     onClick={e => e.stopPropagation()} 
                 >
-                    <div className="p-4 border-b dark:border-gray-700 flex justify-between items-center">
-                        <h3 className="text-lg font-bold">{title}</h3>
-                        <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 text-2xl" aria-label="بستن">
+                    <div className="p-4 flex justify-between items-center">
+                        <h3 className="text-xl font-bold">{title}</h3>
+                        <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 text-3xl transition-transform active:scale-90" aria-label="بستن">
                             &times;
                         </button>
                     </div>
-                    <div className="p-4">
+                    <div className="p-4 pt-0">
                         {children}
                     </div>
                 </div>
@@ -212,119 +177,134 @@
         );
 
         const Label = ({ htmlFor, children }) => (
-            <label htmlFor={htmlFor} className="block text-sm font-medium mb-1">
+            <label htmlFor={htmlFor} className="block text-sm font-medium mb-1 dark:text-gray-300">
                 {children}
             </label>
         );
 
-        const Input = ({ label, type = 'text', value, onChange, placeholder = '', ...props }) => (
+        const Input = ({ label, type = 'text', value, onChange, placeholder = '', className = '', ...props }) => (
             <div>
-                <Label htmlFor={label}>{label}</Label>
+                {label && <Label htmlFor={label}>{label}</Label>}
                 <input
                     id={label}
                     type={type}
                     value={value}
                     onChange={onChange}
                     placeholder={placeholder}
-                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-100 mt-1"
+                    className={`w-full p-3 border-0 rounded-lg ${COLORS.inputBg} dark:text-gray-100 placeholder-gray-400 text-base focus:ring-ios-blue focus:ring-2 transition-all ${className}`}
                     {...props}
                 />
             </div>
         );
 
-        const Button = ({ children, onClick, className = '' }) => (
-            <button
-                onClick={onClick}
-                className={`px-4 py-2 rounded-lg font-bold transition-all transform hover:scale-[1.02] active:scale-[0.98] ${COLORS.primary} ${COLORS.primaryText} shadow-md ${className}`}
-            >
-                {children}
-            </button>
-        );
+        const Button = ({ children, onClick, style = 'primary', className = '' }) => {
+            let baseStyle = 'px-4 py-3 rounded-xl font-bold transition-all transform active:scale-[0.98] shadow-md text-base';
+            let specificStyle;
 
-        // 4. NewTripDialog (Unchanged)
-        const NewTripDialog = ({ onSave, onClose }) => {
-            const [name, setName] = React.useState('');
-            const [destination, setDestination] = React.useState('');
-            const [budget, setBudget] = React.useState('');
-            const [currencyInfo, setCurrencyInfo] = React.useState(null);
+            if (style === 'primary') {
+                specificStyle = `${COLORS.primary} ${COLORS.primaryText}`;
+            } else if (style === 'danger') {
+                specificStyle = `${COLORS.dangerBg} ${COLORS.primaryText}`;
+            } else if (style === 'secondary') {
+                specificStyle = `bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200`;
+            } else if (style === 'flat') {
+                specificStyle = `bg-transparent text-ios-blue dark:text-blue-400`;
+            }
 
-            React.useEffect(() => {
-                if (destination) {
-                    setCurrencyInfo(CURRENCY_MAP[destination]);
-                } else {
-                    setCurrencyInfo(null);
-                }
-            }, [destination]);
+            return (
+                <button
+                    onClick={onClick}
+                    className={`${baseStyle} ${specificStyle} ${className}`}
+                >
+                    {children}
+                </button>
+            );
+        };
+
+
+        // --- MODALS / DIALOGS ---
+
+        const NewTripDialog = ({ onSave, onClose, initialName = '' }) => {
+            const [name, setName] = useState(initialName);
+            const [destination, setDestination] = useState('');
+            const [budget, setBudget] = useState('');
+            const currencyInfo = useMemo(() => destination ? CURRENCY_MAP[destination] : null, [destination]);
 
             const handleSave = () => {
-                if (!name || !destination || !budget || isNaN(parseFloat(budget))) {
-                    alert("لطفاً همه فیلدها را به درستی پر کنید."); 
+                if (!name || !destination || !budget || isNaN(parseFloat(budget)) || parseFloat(budget) <= 0) {
+                    alert("لطفاً نام سفر، مقصد و بودجه معتبر (بالاتر از صفر) را وارد کنید."); 
                     return;
                 }
                 onSave({
-                    id: generateUniqueId(), // Generating ID locally
+                    id: generateUniqueId(),
                     name: name,
                     destination: destination,
                     budget: parseFloat(budget),
                     currencyCode: currencyInfo.code,
                     createdAt: new Date().toISOString(),
-                    spent: 0,
+                    spentUSD: 0,
                 });
                 onClose();
             };
 
             return (
-                <Dialog title="ثبت سفر جدید" onClose={onClose}>
+                <Dialog title={initialName ? "تغییر نام سفر" : "ثبت سفر جدید"} onClose={onClose}>
                     <div className="space-y-4">
-                        <Input label="نام سفر" value={name} onChange={e => setName(e.target.value)} />
+                        <Input label="نام سفر" value={name} onChange={e => setName(e.target.value)} placeholder="مثال: سفر پکن ۹۹" />
                         
-                        <div>
-                            <Label htmlFor="destination">مقصد</Label>
-                            <select
-                                id="destination"
-                                value={destination}
-                                onChange={e => setDestination(e.target.value)}
-                                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-100 mt-1"
-                            >
-                                <option value="">انتخاب مقصد...</option>
-                                {Object.keys(CURRENCY_MAP).map(dest => (
-                                    <option key={dest} value={dest}>
-                                        {CURRENCY_MAP[dest].flag} {dest}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
+                        {!initialName && (
+                            <div>
+                                <Label htmlFor="destination">مقصد</Label>
+                                <select
+                                    id="destination"
+                                    value={destination}
+                                    onChange={e => setDestination(e.target.value)}
+                                    className={`w-full p-3 border-0 rounded-lg ${COLORS.inputBg} dark:text-gray-100 mt-1 focus:ring-ios-blue focus:ring-2`}
+                                >
+                                    <option value="">انتخاب مقصد...</option>
+                                    {Object.keys(CURRENCY_MAP).map(dest => (
+                                        <option key={dest} value={dest}>
+                                            {CURRENCY_MAP[dest].flag} {dest}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
 
-                        {currencyInfo && (
-                            <div className="flex justify-between items-center text-sm">
+                        {currencyInfo && !initialName && (
+                            <div className="flex justify-between items-center text-sm p-2 rounded-lg bg-gray-100 dark:bg-gray-700">
                                 <span className={COLORS.mutedText}>ارز پیش‌فرض:</span>
                                 <span className="font-bold">{currencyInfo.flag} {currencyInfo.code} ({currencyInfo.symbol})</span>
                             </div>
                         )}
                         
-                        <Input 
-                            label="بودجه پیش‌فرض (USD)" 
-                            type="number" 
-                            value={budget} 
-                            onChange={e => setBudget(e.target.value)} 
-                            placeholder="مثال: 2000"
-                        />
+                        {!initialName && (
+                            <Input 
+                                label="بودجه پیش‌فرض (USD)" 
+                                type="number" 
+                                value={budget} 
+                                onChange={e => setBudget(e.target.value)} 
+                                placeholder="مثال: 2000"
+                                inputMode="decimal"
+                            />
+                        )}
 
-                        <Button onClick={handleSave} className="w-full mt-6">ثبت سفر</Button>
+                        <Button onClick={handleSave} className="w-full mt-6">
+                            {initialName ? "ثبت نام جدید" : "ثبت سفر"}
+                        </Button>
                     </div>
                 </Dialog>
             );
         };
-        
-        // 5. NewExpenseDialog (Unchanged)
+
         const NewExpenseDialog = ({ onSave, onClose, trip, rates }) => {
-            const [category, setCategory] = React.useState(EXPENSE_CATEGORIES[0]);
-            const [description, setDescription] = React.useState('');
-            const [amount, setAmount] = React.useState('');
+            const [category, setCategory] = useState(EXPENSE_CATEGORIES[0]);
+            const [description, setDescription] = useState('');
+            const [amount, setAmount] = useState('');
             const currencyInfo = CURRENCY_MAP[trip.destination];
 
             const handleSave = () => {
-                if (!category || !description || !amount || isNaN(parseFloat(amount))) {
+                if (!category || !description || !amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
                     alert("لطفاً همه فیلدها را به درستی پر کنید.");
                     return;
                 }
@@ -333,14 +313,14 @@
                 const amountUSD = toUSD(amountForeign, trip.currencyCode, rates);
                 
                 onSave({
-                    id: generateUniqueId(), // Generating ID locally
+                    id: generateUniqueId(),
                     tripId: trip.id,
                     category: category,
                     description: description,
                     amountForeign: amountForeign,
                     currencyCode: trip.currencyCode,
                     amountUSD: amountUSD,
-                    date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
+                    date: new Date().toISOString().split('T')[0], 
                     timestamp: Date.now(),
                 });
                 onClose();
@@ -355,7 +335,7 @@
                                 id="category"
                                 value={category}
                                 onChange={e => setCategory(e.target.value)}
-                                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-100 mt-1"
+                                className={`w-full p-3 border-0 rounded-lg ${COLORS.inputBg} dark:text-gray-100 mt-1 focus:ring-ios-blue focus:ring-2`}
                             >
                                 {EXPENSE_CATEGORIES.map(cat => (
                                     <option key={cat} value={cat}>{cat}</option>
@@ -363,20 +343,21 @@
                             </select>
                         </div>
 
-                        <Input label="شرح هزینه" value={description} onChange={e => setDescription(e.target.value)} />
+                        <Input label="شرح هزینه" value={description} onChange={e => setDescription(e.target.value)} placeholder="مثال: ناهار سلف سرویس" />
 
                         <div>
                             <Label htmlFor="amount">مبلغ</Label>
                             <div className="flex items-center space-x-2 space-x-reverse">
-                                <input
-                                    id="amount"
+                                <Input
+                                    label="amount"
                                     type="number"
                                     value={amount}
                                     onChange={e => setAmount(e.target.value)}
                                     placeholder="مقدار"
-                                    className="flex-grow p-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-100"
+                                    className="flex-grow p-3"
+                                    inputMode="decimal"
                                 />
-                                <span className={`${COLORS.mutedText} font-bold text-lg p-2 rounded-lg`}>
+                                <span className={`${COLORS.mutedText} font-bold text-lg p-3 rounded-lg flex-shrink-0`}>
                                     {currencyInfo.symbol} ({currencyInfo.code})
                                 </span>
                             </div>
@@ -388,7 +369,271 @@
             );
         };
         
-        // 6. GaugeChart Component (Unchanged)
+        const TripActionDialog = ({ trip, onRename, onDelete, onClose }) => {
+            return (
+                <Dialog title={`مدیریت سفر ${trip.name}`} onClose={onClose} className="!max-w-xs">
+                    <div className="space-y-2">
+                        <Button 
+                            onClick={() => { onClose(); onRename(trip); }} 
+                            style="secondary" 
+                            className="w-full bg-ios-fill dark:bg-gray-700 text-ios-blue dark:text-blue-400"
+                        >
+                            تغییر نام
+                        </Button>
+                        <Button 
+                            onClick={() => { if(window.confirm(`آیا مطمئنید که می‌خواهید سفر ${trip.name} و تمام هزینه‌های آن را حذف کنید؟`)) { onClose(); onDelete(trip.id); } }} 
+                            style="danger" 
+                            className="w-full"
+                        >
+                            حذف سفر
+                        </Button>
+                        <Button onClick={onClose} style="flat" className="w-full mt-4">
+                            لغو
+                        </Button>
+                    </div>
+                </Dialog>
+            );
+        };
+        
+        const FABMenu = ({ onNewTrip, onNewExpense, onClose, isTripSelected }) => {
+            const { shouldRender, className } = useTransition(true);
+
+            if (!shouldRender) return null;
+
+            return (
+                <div 
+                    className="fixed inset-0 z-40" 
+                    onClick={onClose}
+                >
+                    <div className={`absolute bottom-20 left-1/2 transform -translate-x-1/2 p-4 ${className}`}
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className={`${COLORS.secondaryBg} rounded-xl shadow-2xl w-56 overflow-hidden`}>
+                            <div className="space-y-0.5">
+                                {isTripSelected && (
+                                    <button 
+                                        onClick={() => { onClose(); onNewExpense(); }}
+                                        className={`w-full text-right p-3 font-medium hover:bg-ios-fill dark:hover:bg-gray-700 transition-colors flex items-center justify-end ${COLORS.lightText}`}
+                                    >
+                                        <span className="ml-2">ثبت هزینه جدید</span>
+                                        <span className="text-xl">💵</span>
+                                    </button>
+                                )}
+                                <button 
+                                    onClick={() => { onClose(); onNewTrip(); }}
+                                    className={`w-full text-right p-3 font-medium hover:bg-ios-fill dark:hover:bg-gray-700 transition-colors flex items-center justify-end ${COLORS.lightText} ${isTripSelected ? 'border-t dark:border-gray-700' : ''}`}
+                                >
+                                    <span className="ml-2">ثبت سفر جدید</span>
+                                    <span className="text-xl">✈️</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+        
+
+        // --- CORE COMPONENTS (Modified for iOS look) ---
+
+        const SplashScreen = ({ isVisible }) => {
+            if (!isVisible) return null;
+
+            return (
+                <div 
+                    className="fixed inset-0 z-50 flex flex-col items-center justify-center transition-opacity duration-1000"
+                    style={{ 
+                        background: 'linear-gradient(135deg, #007AFF 0%, #005BBF 100%)', 
+                        opacity: isVisible ? 1 : 0
+                    }}
+                >
+                    <div className="text-center text-white p-6 rounded-xl animate-pulse">
+                        <h1 className="text-4xl font-extrabold mb-3 shadow-lg">
+                            ✈️ دستیار مالی سفر
+                        </h1>
+                        <p className="text-xl font-light opacity-80 mt-6">
+                            Vazirmatn & iOS Style
+                        </p>
+                        <p className="text-xs mt-10 opacity-70">
+                            (ذخیره محلی در مرورگر شما)
+                        </p>
+                    </div>
+                </div>
+            );
+        };
+
+        const NavItem = ({ name, screen, icon, currentScreen, onNavigate, enabled }) => {
+            const isActive = currentScreen === screen;
+            const isDisabled = !enabled;
+
+            return (
+                <button
+                    onClick={() => !isDisabled && onNavigate(screen)}
+                    disabled={isDisabled}
+                    className={`
+                        flex flex-col items-center text-xs p-1 h-full transition-colors duration-200
+                        ${isDisabled 
+                            ? 'text-gray-400 dark:text-gray-600 cursor-not-allowed' 
+                            : (isActive ? 'text-ios-blue dark:text-blue-400' : 'text-gray-700 dark:text-gray-300 hover:text-ios-blue dark:hover:text-blue-400')
+                        }
+                    `}
+                >
+                    <span className="text-xl mb-0.5">{icon}</span>
+                    <span className="font-medium">{name}</span>
+                </button>
+            );
+        };
+
+        const NavBar = ({ currentScreen, onNavigate, selectedTrip }) => {
+            const isTripSelected = !!selectedTrip;
+
+            const navItems = [
+                { name: 'سفرها', screen: 'home', icon: '🏠', enabled: true },
+                { name: 'گزارش', screen: 'reports', icon: '📊', enabled: isTripSelected },
+                { name: 'تنظیمات', screen: 'settings', icon: '⚙️', enabled: true },
+                { name: 'درباره', screen: 'about', icon: 'ℹ️', enabled: true },
+            ];
+
+            const PlusButton = () => (
+                <button
+                    onClick={() => onNavigate('plus')}
+                    className={`
+                        ${COLORS.primary} w-14 h-14 rounded-full -mt-6 shadow-xl shadow-ios-blue/50
+                        flex items-center justify-center text-3xl transition-transform
+                        transform hover:scale-105 active:scale-95 z-20 
+                        ${COLORS.primaryText} border-4 border-white dark:border-[#1C1C1E]
+                    `}
+                    aria-label="منوی اکشن"
+                >
+                    ➕
+                </button>
+            );
+
+            return (
+                <nav className={`${COLORS.secondaryBg} shadow-2xl fixed bottom-0 left-0 right-0 z-40 border-t ${COLORS.separator} h-16`}>
+                    <div className="grid grid-cols-5 items-end h-full pt-2">
+                        {navItems.slice(0, 2).map(item => (
+                            <NavItem key={item.name} {...item} currentScreen={currentScreen} onNavigate={onNavigate} />
+                        ))}
+                        <div className="flex justify-center">
+                            <PlusButton />
+                        </div>
+                        {navItems.slice(2).map(item => (
+                            <NavItem key={item.name} {...item} currentScreen={currentScreen} onNavigate={onNavigate} />
+                        ))}
+                    </div>
+                </nav>
+            );
+        };
+
+        // --- Screens ---
+
+        const HomeScreen = ({ trips, onSelectTrip, selectedTrip, onActionTrip }) => {
+            if (!trips || trips.length === 0) {
+                return (
+                    <div className="flex flex-col items-center justify-center h-full text-center p-6 mt-20">
+                        <h2 className="text-xl font-bold mb-4">
+                            شروع کنید!
+                        </h2>
+                        <p className={COLORS.mutedText}>
+                            برای ثبت اولین سفر، روی دکمه <span className="text-ios-blue font-bold">➕</span> در پایین صفحه کلیک کنید.
+                        </p>
+                        <p className="mt-8 text-xs font-medium p-3 bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 rounded-xl">
+                            ⚠️ اطلاعات شما فقط به‌صورت محلی در مرورگر این دستگاه ذخیره می‌شود.
+                        </p>
+                    </div>
+                );
+            }
+
+            const totalSpent = trips.reduce((sum, trip) => sum + (trip.spentUSD || 0), 0).toFixed(2);
+            const totalBudget = trips.reduce((sum, trip) => sum + trip.budget, 0).toFixed(2);
+
+            // Item for Long Press/Context Menu
+            const TripItem = ({ trip }) => {
+                const percentageSpent = trip.budget > 0 ? ((trip.spentUSD || 0) / trip.budget) * 100 : 0;
+                const isOverBudget = percentageSpent > 100;
+                const currencyInfo = CURRENCY_MAP[trip.destination];
+
+                const handlePress = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onActionTrip(trip.id);
+                };
+
+                return (
+                    <div
+                        key={trip.id}
+                        onClick={() => onSelectTrip(trip.id)}
+                        onContextMenu={handlePress} // Context menu (right-click on desktop)
+                        onTouchStart={(e) => { 
+                            // Simple long press simulation for mobile
+                            const touchTimer = setTimeout(() => handlePress(e), 700);
+                            e.currentTarget.dataset.touchTimer = touchTimer;
+                        }}
+                        onTouchEnd={(e) => {
+                            clearTimeout(e.currentTarget.dataset.touchTimer);
+                        }}
+                        className={`p-4 rounded-xl shadow-lg cursor-pointer transition-all border 
+                            ${trip.id === selectedTrip?.id 
+                                ? 'border-ios-blue bg-blue-50 dark:bg-gray-800' 
+                                : 'border-transparent hover:shadow-xl hover:bg-gray-50 dark:hover:bg-gray-800'
+                            } ${COLORS.secondaryBg} shadow-sm border-2
+                        `}
+                    >
+                        <div className="flex justify-between items-start mb-2">
+                            <h3 className="text-lg font-bold flex items-center">
+                                {currencyInfo.flag} {trip.name}
+                            </h3>
+                            <span className={COLORS.mutedText} title="برای حذف یا ویرایش، نگه دارید">
+                                بودجه: <span className="font-bold">{formatCurrency(trip.budget)}</span>
+                            </span>
+                        </div>
+                        
+                        <div className="flex justify-between items-center text-sm mb-2">
+                            <p className={`font-semibold ${isOverBudget ? COLORS.dangerText : 'text-green-600 dark:text-green-400'}`}>
+                                هزینه شده: <span className="font-bold">{formatCurrency(trip.spentUSD || 0)}</span>
+                            </p>
+                            <span className={COLORS.mutedText}>
+                                {currencyInfo.code}
+                            </span>
+                        </div>
+
+                        <div className="w-full bg-gray-200 rounded-full h-2 dark:bg-gray-700 mt-2">
+                            <div 
+                                className={`h-2 rounded-full transition-all duration-500 ${isOverBudget ? 'bg-ios-red' : 'bg-ios-blue'}`} 
+                                style={{ width: `${Math.min(percentageSpent, 100)}%` }}
+                            ></div>
+                        </div>
+                        {isOverBudget && <p className="text-ios-red text-xs mt-1 font-medium">!از بودجه تعیین شده عبور کرده‌اید</p>}
+                    </div>
+                );
+            };
+
+            return (
+                <div className="space-y-4 p-4 pb-20">
+                    <h1 className="text-3xl font-bold pt-4 pb-2">سفرهای شما</h1>
+                    
+                    <div className="flex justify-between p-3 rounded-xl bg-ios-fill dark:bg-gray-700 shadow-inner">
+                        <div className="text-sm font-medium">
+                            <p className="text-gray-800 dark:text-gray-200">جمع کل هزینه‌ها:</p>
+                            <p className="text-xl font-extrabold text-ios-blue">{formatCurrency(totalSpent)}</p>
+                        </div>
+                        <div className="text-sm font-medium text-left">
+                            <p className="text-gray-800 dark:text-gray-200">جمع کل بودجه:</p>
+                            <p className="text-xl font-extrabold text-ios-blue">{formatCurrency(totalBudget)}</p>
+                        </div>
+                    </div>
+                    
+                    <div className="space-y-3 pt-4">
+                        {trips.map(trip => <TripItem key={trip.id} trip={trip} />)}
+                    </div>
+                </div>
+            );
+        };
+        
+        // Removed Report and Gauge/Pie chart components for brevity in thought, but they are included in the final file and use React/useState.
+        // Assume all other sub-components (GaugeChart, PieChart, ReportsScreen, SettingsScreen, AboutScreen, LoadingIndicator) are defined here...
+        
         const GaugeChart = ({ percentage }) => {
             const radius = 50;
             const circumference = 2 * Math.PI * radius;
@@ -397,7 +642,7 @@
             
             let color = 'text-green-500';
             if (percentage > 75) color = 'text-yellow-500';
-            if (percentage > 100) color = 'text-red-500';
+            if (percentage > 100) color = 'text-ios-red';
 
             return (
                 <div className="relative flex items-center justify-center w-full max-w-xs mx-auto">
@@ -432,7 +677,6 @@
             );
         };
 
-        // 7. PieChart Component (Unchanged)
         const PieChart = ({ data }) => {
             if (!data || data.length === 0) {
                 return <div className="text-center p-4">داده‌ای برای نمایش نمودار هزینه وجود ندارد.</div>;
@@ -442,15 +686,15 @@
             let startAngle = 0;
 
             const categoryColors = {
-                'هتل': '#f87171',   // Red
-                'غذا': '#34d399',    // Green
-                'تاکسی': '#60a5fa', // Blue
-                'مترو': '#facc15',   // Yellow
-                'هدیه': '#c084fc',   // Purple
-                'سایر': '#9ca3af',   // Gray
+                'هتل': '#FF9500',   // Orange
+                'غذا': '#34C759',    // Green
+                'تاکسی': '#007AFF', // Blue
+                'مترو': '#FFCC00',   // Yellow
+                'هدیه': '#AF52DE',   // Indigo
+                'سایر': '#8E8E93',   // Gray
             };
 
-            const segments = data.map((item, index) => {
+            const segments = data.map((item) => {
                 const percentage = total > 0 ? (item.amountUSD / total) : 0;
                 const endAngle = startAngle + percentage * 360;
                 
@@ -475,6 +719,7 @@
                 const segment = {
                     category: item.category,
                     percentage: (percentage * 100).toFixed(1),
+                    amountUSD: item.amountUSD,
                     color: color,
                     d: d,
                 };
@@ -508,113 +753,26 @@
                                     <span className={COLORS.lightText}>{segment.category}</span>
                                 </div>
                                 <span className="font-mono text-gray-700 dark:text-gray-300">
-                                    {segment.percentage}%
+                                    {formatCurrency(segment.amountUSD)} ({segment.percentage}%)
                                 </span>
                             </div>
                         ))}
                         <div className="pt-2 border-t dark:border-gray-700 flex justify-between font-bold">
                             <span>جمع کل:</span>
-                            <span>${total.toFixed(2)}</span>
+                            <span>{formatCurrency(total)}</span>
                         </div>
                     </div>
                 </div>
             );
         };
-        
-        // 8. HomeScreen (Simplified, removed auth checks)
-        const HomeScreen = ({ trips, onSelectTrip, selectedTrip }) => {
-            if (!trips || trips.length === 0) {
-                return (
-                    <div className="flex flex-col items-center justify-center h-full text-center p-6">
-                        <h2 className="text-xl font-semibold mb-4">
-                            سفر جدیدی ثبت نشده است!
-                        </h2>
-                        <p className={COLORS.mutedText}>
-                            برای شروع، روی دکمه <span className="text-blue-500 font-bold">➕</span> در پایین صفحه کلیک کنید و اولین سفر خود را ثبت نمایید.
-                        </p>
-                        <p className="mt-8 text-xs font-medium p-2 bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 rounded-lg">
-                            ⚠️ اطلاعات شما به صورت **محلی** در مرورگر ذخیره می‌شود. با پاک کردن کش مرورگر، اطلاعات پاک خواهند شد.
-                        </p>
-                    </div>
-                );
-            }
 
-            const totalSpent = trips.reduce((sum, trip) => sum + (trip.spentUSD || 0), 0).toFixed(2);
-            const totalBudget = trips.reduce((sum, trip) => sum + trip.budget, 0).toFixed(2);
-
-            return (
-                <div className="space-y-4 p-4 pb-20">
-                    <div className="flex justify-between p-3 rounded-xl bg-blue-100 dark:bg-blue-900 shadow-lg border border-blue-200 dark:border-blue-800">
-                        <div className="text-sm font-medium">
-                            <p className="text-blue-800 dark:text-blue-200">جمع کل هزینه‌ها:</p>
-                            <p className="text-xl font-bold text-blue-900 dark:text-blue-100">${totalSpent}</p>
-                        </div>
-                        <div className="text-sm font-medium text-left">
-                            <p className="text-blue-800 dark:text-blue-200">جمع کل بودجه:</p>
-                            <p className="text-xl font-bold text-blue-900 dark:text-blue-100">${totalBudget}</p>
-                        </div>
-                    </div>
-                    
-                    <h2 className="text-lg font-bold pt-4 pb-2 border-b dark:border-gray-700">لیست سفرها</h2>
-                    
-                    <div className="space-y-3">
-                        {trips.map(trip => {
-                            const percentageSpent = trip.budget > 0 ? ((trip.spentUSD || 0) / trip.budget) * 100 : 0;
-                            const isOverBudget = percentageSpent > 100;
-                            const currencyInfo = CURRENCY_MAP[trip.destination];
-
-                            return (
-                                <div
-                                    key={trip.id}
-                                    onClick={() => onSelectTrip(trip.id)}
-                                    className={`p-4 rounded-xl shadow-lg cursor-pointer transition-all border 
-                                        ${trip.id === selectedTrip?.id 
-                                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-950' 
-                                            : 'border-gray-200 dark:border-gray-700 hover:shadow-xl hover:bg-gray-50 dark:hover:bg-gray-800'
-                                        }
-                                    `}
-                                >
-                                    <div className="flex justify-between items-start mb-2">
-                                        <h3 className="text-xl font-bold flex items-center">
-                                            {currencyInfo.flag} {trip.name}
-                                        </h3>
-                                        <span className={`${COLORS.mutedText} text-sm`}>
-                                            بودجه: <span className="font-bold">${trip.budget.toFixed(2)}</span>
-                                        </span>
-                                    </div>
-                                    
-                                    <div className="flex justify-between items-center text-sm mb-2">
-                                        <p className={`font-semibold ${isOverBudget ? COLORS.danger : 'text-green-600 dark:text-green-400'}`}>
-                                            هزینه شده: <span className="font-bold">${(trip.spentUSD || 0).toFixed(2)}</span>
-                                        </p>
-                                        <span className={COLORS.mutedText}>
-                                            {currencyInfo.code}
-                                        </span>
-                                    </div>
-
-                                    <div className="w-full bg-gray-200 rounded-full h-2 dark:bg-gray-700 mt-2">
-                                        <div 
-                                            className={`h-2 rounded-full transition-all duration-500 ${isOverBudget ? 'bg-red-500' : 'bg-blue-500'}`} 
-                                            style={{ width: `${Math.min(percentageSpent, 100)}%` }}
-                                        ></div>
-                                    </div>
-                                    {isOverBudget && <p className="text-red-500 text-xs mt-1 font-medium">!از بودجه تعیین شده عبور کرده‌اید</p>}
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            );
-        };
-        
-        // 9. ReportsScreen (Unchanged)
-        const ReportsScreen = ({ selectedTrip, expenses, rates }) => {
+        const ReportsScreen = ({ selectedTrip, expenses }) => {
             const expensesForTrip = expenses.filter(e => e.tripId === selectedTrip.id);
 
             if (expensesForTrip.length === 0) {
                 return (
                     <div className="text-center p-6 pt-12">
-                        <h2 className="text-xl font-bold mb-4">گزارشات</h2>
+                        <h1 className="text-3xl font-bold pt-4 pb-2">گزارشات</h1>
                         <p className={COLORS.mutedText}>
                             هنوز هزینه‌ای برای سفر <span className="font-bold">{selectedTrip.name}</span> ثبت نشده است.
                         </p>
@@ -657,48 +815,47 @@
 
             return (
                 <div className="p-4 pb-20 space-y-8">
-                    <h2 className="text-2xl font-bold text-center border-b pb-3 dark:border-gray-700">
-                        گزارش سفر: <span className="text-blue-600 dark:text-blue-400">{selectedTrip.name}</span>
-                    </h2>
+                    <h1 className="text-3xl font-bold pt-4 pb-2">گزارشات</h1>
+                    <h2 className="text-xl font-bold text-ios-blue dark:text-blue-400">سفر: {selectedTrip.name}</h2>
 
-                    <div className={`${COLORS.secondaryBg} p-4 rounded-xl shadow-inner`}>
-                        <h3 className="text-lg font-bold mb-4 text-center">پول خرج شده نسبت به کل بودجه</h3>
+                    <div className={`${COLORS.secondaryBg} p-4 rounded-xl shadow-md border ${COLORS.separator}`}>
+                        <h3 className="text-lg font-bold mb-4 text-center">بودجه کل</h3>
                         <GaugeChart percentage={percentage} />
-                        <div className="text-center mt-4">
-                            <p className={COLORS.mutedText}>بودجه: ${selectedTrip.budget.toFixed(2)}</p>
-                            <p className="text-xl font-bold">${totalSpentUSD.toFixed(2)} <span className="text-sm">هزینه شده</span></p>
-                            {percentage > 100 && <p className="text-red-500 font-bold mt-2">!!!از بودجه کل عبور کرده‌اید</p>}
+                        <div className="text-center mt-4 space-y-1">
+                            <p className={COLORS.mutedText}>بودجه کل: {formatCurrency(selectedTrip.budget)}</p>
+                            <p className="text-xl font-bold text-ios-blue">{formatCurrency(totalSpentUSD)} <span className="text-sm">هزینه شده</span></p>
+                            {percentage > 100 && <p className="text-ios-red font-bold mt-2">!!!از بودجه کل عبور کرده‌اید</p>}
                         </div>
                     </div>
                     
-                    <div className={`${COLORS.secondaryBg} p-4 rounded-xl shadow-inner`}>
-                        <h3 className="text-lg font-bold mb-4 text-center">تفکیک هزینه‌ها بر اساس دسته‌بندی</h3>
+                    <div className={`${COLORS.secondaryBg} p-4 rounded-xl shadow-md border ${COLORS.separator}`}>
+                        <h3 className="text-lg font-bold mb-4 text-center">تفکیک هزینه‌ها</h3>
                         <PieChart data={pieChartData} />
                     </div>
 
                     {dailyAlerts.length > 0 && (
-                        <div className={`${COLORS.warning} p-4 rounded-xl border border-red-500 shadow-md space-y-3`}>
-                            <h3 className="text-red-700 dark:text-red-300 font-bold flex items-center">
+                        <div className={`p-4 rounded-xl border border-ios-red dark:border-red-600 bg-red-50 dark:bg-red-950 shadow-md space-y-3`}>
+                            <h3 className="text-ios-red font-bold flex items-center">
                                 ⚠️ اخطار محدودیت هزینه‌های روزانه
                             </h3>
                             <p className="text-sm text-red-600 dark:text-red-200">
                                 حداکثر روزانه هتل: $120. حداکثر تنخواه روزانه (سایر): $40.
                             </p>
                             {dailyAlerts.map(([date, data]) => (
-                                <div key={date} className="p-3 bg-red-50 dark:bg-red-900 rounded-lg border border-red-300">
+                                <div key={date} className="p-3 bg-red-100 dark:bg-red-900 rounded-lg border border-red-300">
                                     <h4 className="font-bold text-red-700 dark:text-red-300">{date}</h4>
                                     {data.hotel > 120 && (
                                         <p className="text-sm">
-                                            <span className="font-semibold">هزینه هتل:</span> ${data.hotel.toFixed(2)} (بیشتر از $120)
+                                            <span className="font-semibold">هزینه هتل:</span> {formatCurrency(data.hotel)} (بیشتر از $120)
                                         </p>
                                     )}
                                     {data.perDiem > 40 && (
                                         <p className="text-sm">
-                                            <span className="font-semibold">تنخواه روزانه:</span> ${data.perDiem.toFixed(2)} (بیشتر از $40)
+                                            <span className="font-semibold">تنخواه روزانه:</span> {formatCurrency(data.perDiem)} (بیشتر از $40)
                                         </p>
                                     )}
                                     <p className="text-xs mt-1 text-red-500 dark:text-red-400">
-                                        مجموع کل روز: ${data.all.toFixed(2)}
+                                        مجموع کل روز: {formatCurrency(data.all)}
                                     </p>
                                 </div>
                             ))}
@@ -707,12 +864,11 @@
                 </div>
             );
         };
-        
-        // 10. SettingsScreen (Uses local state management)
-        const SettingsScreen = ({ theme, onThemeChange, autoDarkMode, onToggleAutoDarkMode, rates, onSaveRates }) => {
-            const [localRates, setLocalRates] = React.useState(rates);
 
-            React.useEffect(() => {
+        const SettingsScreen = ({ theme, onThemeChange, autoDarkMode, onToggleAutoDarkMode, rates, onSaveRates }) => {
+            const [localRates, setLocalRates] = useState(rates);
+
+            useEffect(() => {
                 setLocalRates(rates);
             }, [rates]);
 
@@ -725,18 +881,19 @@
 
             const handleSave = () => {
                 onSaveRates(localRates);
+                alert("نرخ تبدیل ارز ذخیره شد.");
             };
 
             const rateKeys = Object.values(CURRENCY_MAP).map(info => info.code);
 
             return (
                 <div className="p-4 pb-20 space-y-6">
-                    <h2 className="text-2xl font-bold text-center border-b pb-3 dark:border-gray-700">تنظیمات</h2>
+                    <h1 className="text-3xl font-bold pt-4 pb-2">تنظیمات</h1>
 
-                    <div className={`${COLORS.secondaryBg} p-4 rounded-xl shadow-inner space-y-3`}>
+                    <div className={`${COLORS.secondaryBg} p-4 rounded-xl shadow-md space-y-3 border ${COLORS.separator}`}>
                         <h3 className="text-lg font-bold border-b pb-2">تنظیمات تم</h3>
                         
-                        <div className="flex justify-between items-center">
+                        <div className="flex justify-between items-center py-2">
                             <span className="font-medium">حالت شب (Dark Mode)</span>
                             <label className="relative inline-flex items-center cursor-pointer">
                                 <input 
@@ -745,69 +902,78 @@
                                     onChange={() => onThemeChange(theme === 'dark' ? 'light' : 'dark')} 
                                     className="sr-only peer"
                                 />
-                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                                {/* iOS Style Toggle Switch */}
+                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 dark:bg-gray-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-ios-blue"></div>
                                 <span className="mr-3 text-sm font-medium">{theme === 'dark' ? 'فعال' : 'غیرفعال'}</span>
                             </label>
                         </div>
 
-                        <div className="flex items-center pt-2 border-t dark:border-gray-700">
+                        <div className="flex items-center pt-2 border-t ${COLORS.separator}">
                             <input 
                                 id="auto-dark-mode" 
                                 type="checkbox" 
                                 checked={autoDarkMode} 
                                 onChange={onToggleAutoDarkMode} 
-                                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 dark:bg-gray-700 dark:border-gray-600"
+                                className="w-4 h-4 text-ios-blue bg-gray-100 border-gray-300 rounded focus:ring-ios-blue dark:ring-offset-gray-800 dark:bg-gray-700 dark:border-gray-600"
                             />
                             <label htmlFor="auto-dark-mode" className="mr-2 text-sm font-medium">
-                                دارک مد خودکار (بر اساس تنظیمات دستگاه)
+                                دارک مد خودکار (سیستم)
                             </label>
                         </div>
                     </div>
 
-                    <div className={`${COLORS.secondaryBg} p-4 rounded-xl shadow-inner space-y-3`}>
+                    <div className={`${COLORS.secondaryBg} p-4 rounded-xl shadow-md space-y-3 border ${COLORS.separator}`}>
                         <h3 className="text-lg font-bold border-b pb-2">نرخ تبدیل ارز (USD به واحد محلی)</h3>
                         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                            مقدار ارز محلی که با 1 دلار آمریکا (USD) دریافت می‌شود را وارد کنید.
+                            مقدار ارز محلی در برابر 1 دلار آمریکا.
                         </p>
                         
                         {rateKeys.map(code => {
                             const info = Object.values(CURRENCY_MAP).find(c => c.code === code);
                             return (
                                 <div key={code} className="flex items-center space-x-4 space-x-reverse">
-                                    <span className="w-12 text-2xl text-center">{info.flag}</span>
-                                    <span className="w-20 font-medium">{info.code}</span>
+                                    <span className="w-10 text-2xl text-center flex-shrink-0">{info.flag}</span>
+                                    <span className="w-16 font-medium text-lg flex-shrink-0">{info.code}</span>
                                     <Input 
-                                        label={`1 USD = ${info.code}`}
+                                        label=""
                                         type="number"
                                         value={localRates[code] || ''}
                                         onChange={(e) => handleRateChange(code, e.target.value)}
                                         placeholder={`نرخ ${info.code}`}
-                                        className="flex-grow"
+                                        className="flex-grow text-left"
                                         style={{ direction: 'ltr' }}
+                                        inputMode="decimal"
                                     />
                                 </div>
                             );
                         })}
                         
-                        <Button onClick={handleSave} className="w-full mt-6">ذخیره و اعمال تغییرات</Button>
+                        <Button onClick={handleSave} className="w-full mt-6">ذخیره نرخ‌ها</Button>
                     </div>
                 </div>
             );
         };
-        
-        // 11. AboutScreen (Unchanged)
+
         const AboutScreen = () => (
-            <div className="flex items-center justify-center h-full text-center p-6">
-                <h2 className="text-2xl font-bold p-8 rounded-xl border border-dashed border-blue-400 dark:border-blue-600">
-                    نوشته شده با ❤️ توسط محمد صادقی کاجی
-                </h2>
+            <div className="p-4 pb-20 space-y-6">
+                <h1 className="text-3xl font-bold pt-4 pb-2">درباره ما</h1>
+                <div className={`${COLORS.secondaryBg} p-6 rounded-xl shadow-md border ${COLORS.separator} text-center`}>
+                    <p className="text-lg font-bold mb-4 text-ios-blue dark:text-blue-400">
+                        برنامه دستیار مالی سفرهای خارجی
+                    </p>
+                    <p className={COLORS.mutedText}>
+                        این برنامه با هدف مدیریت و پیگیری هزینه‌های ارزی سفر، به‌صورت یک وب‌اپلیکیشن مستقل (PWA) طراحی شده است.
+                    </p>
+                    <p className="mt-6 text-sm font-medium">
+                        نوشته شده با ❤️ توسط محمد صادقی کاجی
+                    </p>
+                </div>
             </div>
         );
-        
-        // 12. LoadingIndicator (Simplified)
+
         const LoadingIndicator = ({ message = "در حال بارگذاری..." }) => (
             <div className="flex flex-col items-center justify-center h-full text-center p-6">
-                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 dark:border-blue-400 mb-3"></div>
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-ios-blue dark:border-blue-400 mb-3"></div>
                 <p className="font-medium">{message}</p>
             </div>
         );
@@ -815,7 +981,6 @@
 
         // --- MAIN APP COMPONENT ---
         const App = () => {
-            const [React, ReactDOM] = [window.React, window.ReactDOM];
             
             // --- Initial State Loading (localStorage) ---
             const initialSettings = loadFromLocalStorage(LS_KEY_SETTINGS, { 
@@ -828,72 +993,70 @@
                 }
             });
 
-            const [trips, setTrips] = React.useState(loadFromLocalStorage(LS_KEY_TRIPS, []));
-            const [expenses, setExpenses] = React.useState(loadFromLocalStorage(LS_KEY_EXPENSES, []));
+            const [trips, setTrips] = useState(loadFromLocalStorage(LS_KEY_TRIPS, []));
+            const [expenses, setExpenses] = useState(loadFromLocalStorage(LS_KEY_EXPENSES, []));
             
             // Settings State
-            const [theme, setTheme] = React.useState(initialSettings.theme); 
-            const [autoDarkMode, setAutoDarkMode] = React.useState(initialSettings.autoDarkMode);
-            const [rates, setRates] = React.useState(initialSettings.rates);
+            const [theme, setTheme] = useState(initialSettings.theme); 
+            const [autoDarkMode, setAutoDarkMode] = useState(initialSettings.autoDarkMode);
+            const [rates, setRates] = useState(initialSettings.rates);
 
             // UI State
-            const [selectedTripId, setSelectedTripId] = React.useState(null);
-            const [currentScreen, setCurrentScreen] = React.useState('home');
-            const [isSplashVisible, setIsSplashVisible] = React.useState(true);
-            const [showModal, setShowModal] = React.useState(null); 
-            const [isLoading, setIsLoading] = React.useState(false); // Used instead of authReady
+            const [selectedTripId, setSelectedTripId] = useState(null);
+            const [currentScreen, setCurrentScreen] = useState('home');
+            const [isSplashVisible, setIsSplashVisible] = useState(true);
+            const [showModal, setShowModal] = useState(null); // 'newTrip', 'newExpense', 'fabMenu', 'actionTrip', 'renameTrip'
+            const [actionTripId, setActionTripId] = useState(null); // ID of trip being managed (rename/delete)
+            const [isLoading, setIsLoading] = useState(false);
 
             // --- Derived State ---
-            const selectedTrip = React.useMemo(() => trips.find(t => t.id === selectedTripId), [trips, selectedTripId]);
+            const selectedTrip = useMemo(() => trips.find(t => t.id === selectedTripId), [trips, selectedTripId]);
+            const actionTrip = useMemo(() => trips.find(t => t.id === actionTripId), [trips, actionTripId]);
             
-            React.useEffect(() => {
+            useEffect(() => {
+                // Set initial selected trip to the first one if none is selected
                 if (!selectedTripId && trips.length > 0) {
                     setSelectedTripId(trips[0].id);
                 }
             }, [trips, selectedTripId]);
 
 
-            // --- Local Storage Synchronization ---
-
-            // Save Trips
-            React.useEffect(() => {
+            // --- Local Storage Synchronization & Calculated Spent ---
+            
+            // Save Trips, Expenses, and Update Spent Amount
+            useEffect(() => {
                 saveToLocalStorage(LS_KEY_TRIPS, trips);
             }, [trips]);
 
-            // Save Expenses
-            React.useEffect(() => {
+            useEffect(() => {
                 saveToLocalStorage(LS_KEY_EXPENSES, expenses);
             }, [expenses]);
             
-            // Update Spent amount on trips whenever expenses or rates change
-            React.useEffect(() => {
+            // Recalculate spent USD on trips
+            useEffect(() => {
                 const newTrips = trips.map(trip => {
                     const totalSpent = expenses
                         .filter(e => e.tripId === trip.id)
                         .reduce((sum, e) => sum + e.amountUSD, 0);
                     
-                    // Only update if the spent amount has significantly changed
                     if (Math.abs(trip.spentUSD - totalSpent) > 0.01) {
                         return { ...trip, spentUSD: totalSpent };
                     }
                     return trip;
                 });
 
-                // Only set state if the array content has changed to avoid unnecessary re-renders
                 if (JSON.stringify(trips) !== JSON.stringify(newTrips)) {
                     setTrips(newTrips);
                 }
-                
             }, [expenses, rates, trips]);
 
 
             // --- Splash Screen Timeout ---
-            React.useEffect(() => {
+            useEffect(() => {
                 const timer = setTimeout(() => {
                     setIsSplashVisible(false);
-                    // Simulate loading finish after initial local load
                     setIsLoading(false); 
-                }, 3000); 
+                }, 1500); // Shorter splash time
                 return () => clearTimeout(timer);
             }, []);
 
@@ -902,37 +1065,40 @@
 
             const handleNavigate = (screen) => {
                 if (screen === 'plus') {
-                    if (!selectedTrip) {
-                        setShowModal('newTrip');
+                    // Show FAB Menu if any trip exists, otherwise show New Trip Dialog directly
+                    if (trips.length > 0) {
+                        setShowModal('fabMenu');
                     } else {
-                        setShowModal('newExpense');
+                        setShowModal('newTrip');
                     }
                 } else {
                     setCurrentScreen(screen);
                 }
             };
 
+            const handleSelectTrip = useCallback((tripId) => {
+                setSelectedTripId(tripId);
+                setCurrentScreen('home');
+            }, []);
+
             // --- Persistence Handlers (Settings) ---
 
-            const saveLocalSettings = (newSettings) => {
+            const saveLocalSettings = useCallback((newSettings) => {
                 const finalSettings = { 
                     theme: newSettings.theme !== undefined ? newSettings.theme : theme,
                     autoDarkMode: newSettings.autoDarkMode !== undefined ? newSettings.autoDarkMode : autoDarkMode,
                     rates: newSettings.rates !== undefined ? newSettings.rates : rates,
                 };
                 saveToLocalStorage(LS_KEY_SETTINGS, finalSettings);
-            };
+            }, [theme, autoDarkMode, rates]);
 
-            React.useEffect(() => {
+            useEffect(() => {
                 if (autoDarkMode) {
                     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
                     setTheme(prefersDark ? 'dark' : 'light');
                 }
-            }, [autoDarkMode]);
-
-            React.useEffect(() => {
                 document.documentElement.classList.toggle('dark', theme === 'dark');
-            }, [theme]);
+            }, [theme, autoDarkMode]);
 
             const handleThemeChange = (newTheme) => {
                 setTheme(newTheme);
@@ -957,16 +1123,33 @@
 
             // --- Write Functions (Local Storage) ---
 
-            const handleSaveNewTrip = async (newTripData) => {
-                setTrips(prev => [newTripData, ...prev]); // Add new trip to state
+            const handleSaveNewTrip = (newTripData) => {
+                setTrips(prev => [newTripData, ...prev]); 
                 setSelectedTripId(newTripData.id);
                 setCurrentScreen('home');
             };
 
-            const handleSaveNewExpense = async (newExpenseData) => {
-                setExpenses(prev => [newExpenseData, ...prev]); // Add new expense to state
+            const handleSaveNewExpense = (newExpenseData) => {
+                setExpenses(prev => [newExpenseData, ...prev]); 
+            };
+            
+            const handleRenameTrip = (tripId, newName) => {
+                setTrips(prev => prev.map(t => t.id === tripId ? { ...t, name: newName } : t));
+                setActionTripId(null);
             };
 
+            const handleDeleteTrip = (tripId) => {
+                setTrips(prev => prev.filter(t => t.id !== tripId));
+                setExpenses(prev => prev.filter(e => e.tripId !== tripId));
+                
+                // If deleted trip was selected, select the next one or clear selection
+                if (selectedTripId === tripId) {
+                    const remainingTrips = trips.filter(t => t.id !== tripId);
+                    setSelectedTripId(remainingTrips.length > 0 ? remainingTrips[0].id : null);
+                    setCurrentScreen('home');
+                }
+                setActionTripId(null);
+            };
 
             // --- Screen Renderer ---
             const renderContent = () => {
@@ -978,13 +1161,14 @@
                     case 'home':
                         return <HomeScreen 
                             trips={trips} 
-                            onSelectTrip={setSelectedTripId} 
+                            onSelectTrip={handleSelectTrip} 
                             selectedTrip={selectedTrip}
+                            onActionTrip={setActionTripId}
                         />;
                     case 'reports':
                         return selectedTrip 
                             ? <ReportsScreen selectedTrip={selectedTrip} expenses={expenses} rates={rates} />
-                            : <div className="p-6 text-center text-red-500 font-bold">⚠️ ابتدا یک سفر را انتخاب کنید.</div>;
+                            : <div className="p-6 text-center text-red-500 font-bold mt-20">⚠️ ابتدا یک سفر را انتخاب کنید تا گزارش آن نمایش داده شود.</div>;
                     case 'settings':
                         return <SettingsScreen 
                             theme={theme} 
@@ -999,8 +1183,9 @@
                     default:
                         return <HomeScreen 
                             trips={trips} 
-                            onSelectTrip={setSelectedTripId} 
+                            onSelectTrip={handleSelectTrip} 
                             selectedTrip={selectedTrip}
+                            onActionTrip={setActionTripId}
                         />;
                 }
             };
@@ -1009,8 +1194,7 @@
                 <div className={`min-h-screen ${COLORS.tertiaryBg} ${COLORS.lightText} flex flex-col`} style={{ direction: 'rtl' }}>
                     <style>
                         {`
-                        html { font-family: 'Inter', sans-serif; }
-                        .main-content { padding-top: 5rem; padding-bottom: 5rem; flex-grow: 1; }
+                        /* Adjust scrollbar colors for dark mode, subtle iOS style */
                         .dark ::-webkit-scrollbar-thumb {
                             background-color: #4b5563; 
                         }
@@ -1022,32 +1206,28 @@
 
                     <SplashScreen isVisible={isSplashVisible} />
 
-                    <header className={`${COLORS.tertiaryBg} shadow-md p-4 fixed top-0 left-0 right-0 z-30 border-b dark:border-gray-700`}>
+                    {/* Fixed Header (iOS style title bar) */}
+                    <header className={`${COLORS.secondaryBg} shadow-sm p-4 fixed top-0 left-0 right-0 z-30 border-b ${COLORS.separator}`}>
                         {selectedTrip ? (
-                            <div className="flex justify-between items-center">
+                            <div className="flex justify-between items-center h-10">
                                 <h1 className="text-xl font-bold truncate">
                                     {selectedTrip.name}
                                 </h1>
                                 <div className="flex items-center space-x-2 space-x-reverse text-sm">
-                                    <span className={COLORS.mutedText}>بودجه:</span>
-                                    <span className="font-semibold text-green-600 dark:text-green-400">
-                                        ${selectedTrip.budget.toFixed(2)}
-                                    </span>
-                                    <span className={COLORS.mutedText}>|</span>
                                     <span className={COLORS.mutedText}>خرج شده:</span>
-                                    <span className={`font-semibold ${(selectedTrip.spentUSD || 0) > selectedTrip.budget ? COLORS.danger : 'text-yellow-600 dark:text-yellow-400'}`}>
-                                        ${(selectedTrip.spentUSD || 0).toFixed(2)}
+                                    <span className={`font-semibold text-ios-blue dark:text-blue-400`}>
+                                        {formatCurrency(selectedTrip.spentUSD || 0)}
                                     </span>
                                 </div>
                             </div>
                         ) : (
-                            <h1 className="text-xl font-bold text-center text-blue-600 dark:text-blue-400">
-                                مدیریت هزینه‌های سفر
+                            <h1 className="text-xl font-bold text-center text-ios-blue dark:text-blue-400 h-10">
+                                مدیریت سفر
                             </h1>
                         )}
                     </header>
 
-                    <main className="main-content flex-grow overflow-y-auto">
+                    <main className="pt-20 pb-16 flex-grow overflow-y-auto">
                         {renderContent()}
                     </main>
 
@@ -1072,6 +1252,42 @@
                             rates={rates}
                         />
                     )}
+                    
+                    {/* FAB Menu */}
+                    {showModal === 'fabMenu' && (
+                        <FABMenu
+                            onClose={() => setShowModal(null)}
+                            isTripSelected={!!selectedTrip}
+                            onNewTrip={() => setShowModal('newTrip')}
+                            onNewExpense={() => setShowModal('newExpense')}
+                        />
+                    )}
+
+                    {/* Trip Action Dialog (Rename/Delete) */}
+                    {actionTrip && (
+                        <TripActionDialog
+                            trip={actionTrip}
+                            onClose={() => setActionTripId(null)}
+                            onRename={() => {
+                                setActionTripId(null);
+                                setShowModal('renameTrip');
+                            }}
+                            onDelete={handleDeleteTrip}
+                        />
+                    )}
+                    
+                    {/* Rename Trip Dialog */}
+                    {showModal === 'renameTrip' && actionTrip && (
+                        <NewTripDialog
+                            onClose={() => {setShowModal(null); setActionTripId(null);}}
+                            initialName={actionTrip.name}
+                            onSave={(data) => {
+                                handleRenameTrip(actionTrip.id, data.name);
+                                setShowModal(null);
+                                setActionTripId(null);
+                            }}
+                        />
+                    )}
                 </div>
             );
         };
@@ -1080,3 +1296,4 @@
     </script>
 </body>
 </html>
+
