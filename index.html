@@ -1,222 +1,188 @@
 <!DOCTYPE html>
-<html lang="fa">
+<html lang="fa" dir="rtl">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>🧳 دستیار مالی سفر</title>
+    
+    <!-- آیکن برنامه -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><text y=%2222%22 font-size=%2232%22>🧳</text></svg>">
+    
+    <!-- Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-    <div id="root"></div>
+<body class="bg-gray-100 dark:bg-gray-900">
+<div id="root"></div>
 
-    <script type="text/babel">
-        const { useState, useEffect, useMemo, useCallback } = React;
+<script type="text/babel">
 
-        // --- COLORS ---
-        const COLORS = {
-            primary: 'bg-ios-blue dark:bg-blue-400',
-            secondaryBg: 'bg-white dark:bg-gray-800',
-            tertiaryBg: 'bg-gray-50 dark:bg-gray-900',
-            separator: 'border-gray-200 dark:border-gray-700',
-            mutedText: 'text-gray-500 dark:text-gray-400',
-            lightText: 'text-gray-900 dark:text-gray-100',
-        };
+// 🎨 رنگ‌ها
+const COLORS = {
+    primary: "bg-ios-blue",
+    secondaryBg: "bg-white dark:bg-gray-800",
+    tertiaryBg: "bg-gray-50 dark:bg-gray-900",
+    lightText: "text-gray-800 dark:text-gray-100",
+    mutedText: "text-gray-500 dark:text-gray-400",
+    separator: "border-gray-200 dark:border-gray-700"
+};
 
-        const LS_KEY_SETTINGS = 'app_settings';
-        const LS_KEY_TRIPS = 'app_trips';
-        const LS_KEY_EXPENSES = 'app_expenses';
-        const LS_KEY_INSTALL_DISMISSED = 'install_dismissed';
+// 🛠 ابزار ذخیره‌سازی
+const saveToLocalStorage = (key, value) => localStorage.setItem(key, JSON.stringify(value));
+const loadFromLocalStorage = (key, defaultValue) => {
+    const data = localStorage.getItem(key);
+    return data ? JSON.parse(data) : defaultValue;
+};
 
-        const loadFromLocalStorage = (key, defaultValue) => {
-            try { return JSON.parse(localStorage.getItem(key)) ?? defaultValue; } 
-            catch { return defaultValue; }
-        };
-        const saveToLocalStorage = (key, value) => {
-            localStorage.setItem(key, JSON.stringify(value));
-        };
+// 📌 Splash Screen
+const SplashScreen = ({ isVisible }) => {
+    if (!isVisible) return null;
+    return (
+        <div className="fixed inset-0 flex flex-col items-center justify-center bg-ios-blue text-white z-50">
+            <h1 className="text-4xl font-extrabold mb-4">🧳 دستیار مالی سفر</h1>
+            <p className="text-sm">نوشته شده با ❤️ توسط محمد صادقی کاجی</p>
+        </div>
+    );
+};
 
-        const formatCurrency = (value) => `$${value.toFixed(2)}`;
+// ⏳ لودینگ
+const LoadingIndicator = ({ message = "در حال بارگذاری..." }) => (
+    <div className="flex flex-col items-center justify-center h-full text-center p-6">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-ios-blue dark:border-blue-400 mb-3"></div>
+        <p className="font-medium">{message}</p>
+    </div>
+);
 
-        // --- SplashScreen ---
-        const SplashScreen = ({ isVisible }) => (
-            isVisible ? (
-                <div className="fixed inset-0 flex items-center justify-center bg-ios-blue dark:bg-blue-400 text-white text-2xl font-bold z-50">
-                    در حال بارگذاری...
-                </div>
-            ) : null
-        );
+// ⚙️ دکمه دارک مود
+const DarkModeToggle = ({ enabled, onToggle }) => (
+    <div
+        onClick={onToggle}
+        className={`w-14 h-7 flex items-center rounded-full p-1 cursor-pointer transition-colors ${enabled ? "bg-ios-blue" : "bg-gray-300"}`}
+    >
+        <div
+            className={`bg-white w-5 h-5 rounded-full shadow-md transform duration-300 ease-in-out ${enabled ? "translate-x-7" : ""}`}
+        ></div>
+    </div>
+);
 
-        // --- AboutScreen ---
-        const AboutScreen = () => (
-            <div className="p-4 pb-20 space-y-6">
-                <h1 className="text-3xl font-bold pt-4 pb-2">درباره ما</h1>
-                <div className={`${COLORS.secondaryBg} p-6 rounded-xl shadow-md border ${COLORS.separator} text-center`}>
-                    <p className="text-lg font-bold mb-4 text-ios-blue dark:text-blue-400">
-                        برنامه دستیار مالی سفرهای خارجی
-                    </p>
-                    <p className={COLORS.mutedText}>
-                        این برنامه با هدف مدیریت و پیگیری هزینه‌های ارزی سفر، به‌صورت یک وب‌اپلیکیشن مستقل (PWA) طراحی شده است.
-                    </p>
-                    <p className="mt-6 text-sm font-medium">
-                        نوشته شده با ❤️ توسط محمد صادقی کاجی
-                    </p>
-                </div>
+// ➕ دکمه سفید
+const PlusButton = ({ onClick }) => (
+    <button
+        onClick={onClick}
+        className={`bg-ios-blue w-14 h-14 rounded-full -mt-6 shadow-xl flex items-center justify-center text-3xl text-white transition-transform transform hover:scale-105 active:scale-95 z-20 border-4 border-white dark:border-[#1C1C1E]`}
+    >
+        ➕
+    </button>
+);
+
+// 📲 نوتیف PWA
+const PWAInstallPrompt = ({ isVisible, onInstall, onDismiss }) => {
+    if (!isVisible) return null;
+    return (
+        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-300 dark:border-gray-700 flex items-center space-x-4 space-x-reverse z-50">
+            <span className="text-2xl">🧳</span>
+            <div className="flex-1 text-sm font-medium">
+                نصب برنامه دستیار مالی سفر
             </div>
-        );
-
-        // --- LoadingIndicator ---
-        const LoadingIndicator = ({ message = "در حال بارگذاری..." }) => (
-            <div className="flex flex-col items-center justify-center h-full text-center p-6">
-                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-ios-blue dark:border-blue-400 mb-3"></div>
-                <p className="font-medium">{message}</p>
-            </div>
-        );
-
-        // --- PlusButton ---
-        const PlusButton = ({ onClick }) => (
-            <button
-                onClick={onClick}
-                className={`
-                    bg-ios-blue dark:bg-blue-400 w-14 h-14 rounded-full -mt-6 shadow-xl flex items-center justify-center 
-                    text-3xl text-white transform hover:scale-105 active:scale-95 z-20 border-4 border-white dark:border-gray-800
-                `}
+            <button 
+                className="bg-ios-blue text-white px-3 py-1 rounded-md"
+                onClick={onInstall}
             >
-                ➕
+                نصب
             </button>
-        );
+            <button 
+                className="text-gray-500 dark:text-gray-300 px-2"
+                onClick={onDismiss}
+            >
+                ✕
+            </button>
+        </div>
+    );
+};
 
-        // --- PWAInstallPrompt ---
-        const PWAInstallPrompt = ({ isVisible, onInstall, onDismiss }) => {
-            if (!isVisible) return null;
-            return (
-                <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-300 dark:border-gray-700 flex items-center space-x-4 space-x-reverse z-50">
-                    <span className="text-2xl">🧳</span>
-                    <div className="flex-1 text-sm font-medium">
-                        نصب برنامه دستیار مالی سفر
-                    </div>
-                    <button 
-                        className="bg-ios-blue text-white px-3 py-1 rounded-md"
-                        onClick={onInstall}
-                    >
-                        نصب
-                    </button>
-                    <button 
-                        className="text-gray-500 dark:text-gray-300 px-2"
-                        onClick={onDismiss}
-                    >
-                        ✕
-                    </button>
-                </div>
-            );
+// 📄 درباره ما
+const AboutScreen = () => (
+    <div className="p-4 pb-20 space-y-6">
+        <h1 className="text-3xl font-bold pt-4 pb-2">درباره ما</h1>
+        <div className={`${COLORS.secondaryBg} p-6 rounded-xl shadow-md border ${COLORS.separator} text-center`}>
+            <p className="text-lg font-bold mb-4 text-ios-blue dark:text-blue-400">
+                برنامه دستیار مالی سفرهای خارجی
+            </p>
+            <p className={COLORS.mutedText}>
+                این برنامه با هدف مدیریت و پیگیری هزینه‌های ارزی سفر، به‌صورت یک وب‌اپلیکیشن مستقل (PWA) طراحی شده است.
+            </p>
+            <p className="mt-6 text-sm font-medium">
+                نوشته شده با ❤️ توسط محمد صادقی کاجی
+            </p>
+        </div>
+    </div>
+);
+
+// 🏠 App
+const App = () => {
+    const [isSplashVisible, setIsSplashVisible] = React.useState(true);
+    const [theme, setTheme] = React.useState("light");
+    const [showInstallPrompt, setShowInstallPrompt] = React.useState(false);
+    const [deferredPrompt, setDeferredPrompt] = React.useState(null);
+
+    React.useEffect(() => {
+        setTimeout(() => setIsSplashVisible(false), 1500);
+
+        // PWA
+        const handleBeforeInstallPrompt = (e) => {
+            e.preventDefault();
+            setDeferredPrompt(e);
+            setShowInstallPrompt(true);
         };
+        window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+        return () => window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    }, []);
 
-        // --- MAIN APP ---
-        const App = () => {
-            const initialSettings = loadFromLocalStorage(LS_KEY_SETTINGS, { 
-                theme: 'light', 
-                autoDarkMode: true, 
-                rates: { 'CNY': 1, 'AED': 1, 'TRY': 1 }
-            });
+    React.useEffect(() => {
+        document.documentElement.classList.toggle("dark", theme === "dark");
+    }, [theme]);
 
-            const [theme, setTheme] = useState(initialSettings.theme);
-            const [autoDarkMode, setAutoDarkMode] = useState(initialSettings.autoDarkMode);
-            const [trips, setTrips] = useState(loadFromLocalStorage(LS_KEY_TRIPS, []));
-            const [expenses, setExpenses] = useState(loadFromLocalStorage(LS_KEY_EXPENSES, []));
-            const [currentScreen, setCurrentScreen] = useState('home');
-            const [isSplashVisible, setIsSplashVisible] = useState(true);
+    const handleInstallClick = async () => {
+        if (deferredPrompt) {
+            deferredPrompt.prompt();
+            await deferredPrompt.userChoice;
+            setDeferredPrompt(null);
+            setShowInstallPrompt(false);
+        }
+    };
 
-            // PWA
-            const [deferredPrompt, setDeferredPrompt] = useState(null);
-            const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+    return (
+        <div className={`min-h-screen ${COLORS.tertiaryBg} ${COLORS.lightText} flex flex-col`} style={{ direction: 'rtl' }}>
+            <SplashScreen isVisible={isSplashVisible} />
 
-            // Theme effect
-            useEffect(() => {
-                if (autoDarkMode) {
-                    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                    setTheme(prefersDark ? 'dark' : 'light');
-                }
-                document.documentElement.classList.toggle('dark', theme === 'dark');
-            }, [theme, autoDarkMode]);
-
-            // Splash timeout
-            useEffect(() => { setTimeout(() => setIsSplashVisible(false), 1500); }, []);
-
-            // PWA listeners
-            useEffect(() => {
-                const handleBeforeInstallPrompt = (e) => {
-                    e.preventDefault();
-                    setDeferredPrompt(e);
-                    const dismissed = loadFromLocalStorage(LS_KEY_INSTALL_DISMISSED, false);
-                    if (!dismissed) setShowInstallPrompt(true);
-                };
-                const handleAppInstalled = () => {
-                    setDeferredPrompt(null);
-                    setShowInstallPrompt(false);
-                    saveToLocalStorage(LS_KEY_INSTALL_DISMISSED, false);
-                };
-                window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-                window.addEventListener('appinstalled', handleAppInstalled);
-                return () => {
-                    window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-                    window.removeEventListener('appinstalled', handleAppInstalled);
-                };
-            }, []);
-
-            const handleInstallClick = async () => {
-                if (!deferredPrompt) return;
-                deferredPrompt.prompt();
-                const { outcome } = await deferredPrompt.userChoice;
-                console.log(`User response: ${outcome}`);
-                setDeferredPrompt(null);
-                setShowInstallPrompt(false);
-            };
-            const handleDismissInstall = () => {
-                saveToLocalStorage(LS_KEY_INSTALL_DISMISSED, true);
-                setShowInstallPrompt(false);
-            };
-
-            // --- Simple screen renderer ---
-            const renderContent = () => {
-                switch(currentScreen){
-                    case 'about': return <AboutScreen />;
-                    default: return <div className="p-6 text-center">🏠 صفحه اصلی</div>;
-                }
-            };
-
-            return (
-                <div className={`min-h-screen ${COLORS.tertiaryBg} ${COLORS.lightText} flex flex-col`} style={{ direction: 'rtl' }}>
-                    <SplashScreen isVisible={isSplashVisible} />
-
-                    {/* Header */}
-                    <header className={`${COLORS.secondaryBg} shadow-sm p-4 fixed top-0 left-0 right-0 z-30 border-b ${COLORS.separator}`}>
-                        <h1 className="text-xl font-bold text-center text-ios-blue dark:text-blue-400 h-10">
-                            مدیریت سفر
-                        </h1>
-                    </header>
-
-                    {/* Main */}
-                    <main className="pt-20 pb-16 flex-grow overflow-y-auto">{renderContent()}</main>
-
-                    {/* Bottom FAB */}
-                    <div className="fixed bottom-0 left-1/2 transform -translate-x-1/2 mb-6">
-                        <PlusButton onClick={() => alert("منوی اکشن")} />
-                    </div>
-
-                    {/* PWA Prompt */}
-                    <PWAInstallPrompt
-                        isVisible={showInstallPrompt}
-                        onInstall={handleInstallClick}
-                        onDismiss={handleDismissInstall}
-                    />
+            <header className={`${COLORS.secondaryBg} shadow-sm p-4 fixed top-0 left-0 right-0 z-30 border-b ${COLORS.separator}`}>
+                <div className="flex justify-between items-center h-10">
+                    <h1 className="text-xl font-bold">🧳 دستیار سفر</h1>
+                    <DarkModeToggle enabled={theme === "dark"} onToggle={() => setTheme(theme === "dark" ? "light" : "dark")} />
                 </div>
-            );
-        };
+            </header>
 
-        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
-    </script>
+            <main className="pt-20 pb-16 flex-grow overflow-y-auto">
+                <AboutScreen />
+            </main>
+
+            <div className="fixed bottom-6 right-6">
+                <PlusButton onClick={() => alert("➕ کلیک شد")} />
+            </div>
+
+            <PWAInstallPrompt 
+                isVisible={showInstallPrompt} 
+                onInstall={handleInstallClick} 
+                onDismiss={() => setShowInstallPrompt(false)} 
+            />
+        </div>
+    );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+
+</script>
 </body>
 </html>
