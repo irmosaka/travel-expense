@@ -968,11 +968,12 @@
       />
 
       {/* Track */}
-      <div
-        className="w-14 h-7 bg-gray-200 rounded-full peer-checked:bg-green-500 
-                   transition-colors duration-300 flex-shrink-0"
-        aria-hidden="true"
-      ></div>
+<div
+  className={`w-14 h-7 rounded-full transition-colors duration-300 flex-shrink-0
+    ${theme === 'light' ? 'bg-green-500' : 'bg-gray-600'}`}
+  aria-hidden="true"
+></div>
+
 
       {/* Thumb */}
       <span
