@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>دستیار مالی سفرهای خارجی</title>
+    <title>دستیار مالی</br> سفرهای خارجی</title>
     <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -250,7 +250,7 @@
             return (
                 <Dialog title={initialName ? "تغییر نام سفر" : "ثبت سفر جدید"} onClose={onClose}>
                     <div className="space-y-4">
-                        <Input label="نام سفر" value={name} onChange={e => setName(e.target.value)} placeholder="مثال: سفر پکن ۹۹" />
+                        <Input label="نام سفر" value={name} onChange={e => setName(e.target.value)} placeholder="مثال: سفر شنزن 1404" />
                         
                         {!initialName && (
                             <div>
@@ -343,7 +343,7 @@
                             </select>
                         </div>
 
-                        <Input label="شرح هزینه" value={description} onChange={e => setDescription(e.target.value)} placeholder="مثال: ناهار سلف سرویس" />
+                        <Input label="شرح هزینه" value={description} onChange={e => setDescription(e.target.value)} placeholder="مثال: ناهار KFC" />
 
                         <div>
                             <Label htmlFor="amount">مبلغ</Label>
