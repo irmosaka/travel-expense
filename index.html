@@ -945,54 +945,38 @@
   <span className="font-medium">حالت شب (Dark Mode)</span>
 
   <div className="flex items-center gap-3" dir="ltr">
-    {/* Moon (تاریک) */}
-    <button
-      type="button"
-      onClick={() => onThemeChange('dark')}
-      aria-label="تاریک"
-      className="text-gray-400 text-lg focus:outline-none"
-    >
-      🌙
-    </button>
+    {/* Moon (تاریک) - سمت چپ */}
+    <span className="text-gray-400 text-lg">🌙</span>
 
     {/* Switch */}
     <label className="relative inline-flex items-center cursor-pointer">
       <input
         type="checkbox"
         checked={theme === 'dark'}
-        onChange={() =>
-          onThemeChange(theme === 'dark' ? 'light' : 'dark')
-        }
+        onChange={() => onThemeChange(theme === 'dark' ? 'light' : 'dark')}
         className="sr-only peer"
         aria-label="تغییر حالت شب"
       />
 
       {/* Track */}
-<div
-  className={`w-14 h-7 rounded-full transition-colors duration-300 flex-shrink-0
-    ${theme === 'light' ? 'bg-green-500' : 'bg-gray-600'}`}
-  aria-hidden="true"
-></div>
-
+      <div
+        className={`w-14 h-7 rounded-full transition-colors duration-300 flex-shrink-0
+          ${theme === 'dark' ? 'bg-green-500' : 'bg-gray-300'}`}
+        aria-hidden="true"
+      ></div>
 
       {/* Thumb */}
       <span
-        className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow transform transition-transform duration-300
-          ${theme === 'dark' ? 'translate-x-7' : 'translate-x-0'}`}
+        className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transform transition-transform duration-300
+          ${theme === 'dark' ? 'translate-x-0 left-1' : 'translate-x-7'}`}
       ></span>
     </label>
 
-    {/* Sun (روشن) */}
-    <button
-      type="button"
-      onClick={() => onThemeChange('light')}
-      aria-label="روشن"
-      className="text-yellow-400 text-lg focus:outline-none"
-    >
-      ☀️
-    </button>
+    {/* Sun (روشن) - سمت راست */}
+    <span className="text-yellow-400 text-lg">☀️</span>
   </div>
 </div>
+
 
 
                         <div className="flex items-center pt-2 border-t ${COLORS.separator}">
