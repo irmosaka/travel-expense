@@ -1,222 +1,222 @@
 <!DOCTYPE html>
-<html lang="fa" dir="rtl">
+<html lang="fa">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🧳 دستیار مالی سفرهای خارجی</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>🧳 دستیار مالی سفر</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><text y=%2222%22 font-size=%2232%22>🧳</text></svg>">
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-100">
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+    <div id="root"></div>
 
-<div id="root"></div>
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useCallback } = React;
 
-<script type="text/babel">
+        // --- COLORS ---
+        const COLORS = {
+            primary: 'bg-ios-blue dark:bg-blue-400',
+            secondaryBg: 'bg-white dark:bg-gray-800',
+            tertiaryBg: 'bg-gray-50 dark:bg-gray-900',
+            separator: 'border-gray-200 dark:border-gray-700',
+            mutedText: 'text-gray-500 dark:text-gray-400',
+            lightText: 'text-gray-900 dark:text-gray-100',
+        };
 
-const COLORS = {
-    primary: 'bg-ios-blue',
-    secondaryBg: 'bg-white dark:bg-gray-800',
-    tertiaryBg: 'bg-gray-50 dark:bg-gray-900',
-    separator: 'border-gray-200 dark:border-gray-700',
-    mutedText: 'text-gray-500 dark:text-gray-400',
-    lightText: 'text-gray-900 dark:text-gray-100',
-    iosBlue: 'text-ios-blue dark:text-blue-400',
-    dangerText: 'text-ios-red dark:text-red-500',
-};
+        const LS_KEY_SETTINGS = 'app_settings';
+        const LS_KEY_TRIPS = 'app_trips';
+        const LS_KEY_EXPENSES = 'app_expenses';
+        const LS_KEY_INSTALL_DISMISSED = 'install_dismissed';
 
-// --- Local Storage Utilities ---
-const LS_KEY_TRIPS = 'trips';
-const LS_KEY_EXPENSES = 'expenses';
-const LS_KEY_SETTINGS = 'settings';
-const LS_KEY_INSTALL_DISMISSED = 'installDismissed';
+        const loadFromLocalStorage = (key, defaultValue) => {
+            try { return JSON.parse(localStorage.getItem(key)) ?? defaultValue; } 
+            catch { return defaultValue; }
+        };
+        const saveToLocalStorage = (key, value) => {
+            localStorage.setItem(key, JSON.stringify(value));
+        };
 
-const loadFromLocalStorage = (key, defaultValue) => {
-    try {
-        const val = localStorage.getItem(key);
-        return val ? JSON.parse(val) : defaultValue;
-    } catch {
-        return defaultValue;
-    }
-};
+        const formatCurrency = (value) => `$${value.toFixed(2)}`;
 
-const saveToLocalStorage = (key, value) => {
-    try {
-        localStorage.setItem(key, JSON.stringify(value));
-    } catch {}
-};
-
-const formatCurrency = (amount) => `$${amount.toFixed(2)}`;
-
-const CURRENCY_MAP = {
-    'چین': { code: 'CNY', flag: '🇨🇳', defaultRate: 7.2 },
-    'دبی': { code: 'AED', flag: '🇦🇪', defaultRate: 3.67 },
-    'ترکیه': { code: 'TRY', flag: '🇹🇷', defaultRate: 27.5 },
-};
-
-// --- Components ---
-
-const SplashScreen = ({ isVisible }) => {
-    if (!isVisible) return null;
-    return (
-        <div className="fixed inset-0 flex flex-col items-center justify-center bg-ios-blue text-white z-50">
-            <h1 className="text-4xl font-extrabold mb-3 shadow-lg">✈️ دستیار مالی<br />سفرهــــــای خارجی</h1>
-            <p>نوشته شده با ❤️ توسط محمد صادقی کاجی</p>
-        </div>
-    );
-};
-
-// NavBar & NavItem
-const NavItem = ({ name, screen, icon, currentScreen, onNavigate, enabled }) => {
-    const isActive = currentScreen === screen;
-    const isDisabled = !enabled;
-
-    return (
-        <button
-            onClick={() => !isDisabled && onNavigate(screen)}
-            disabled={isDisabled}
-            className={`
-                flex flex-col items-center text-xs p-1 h-full transition-colors duration-200
-                ${isDisabled 
-                    ? 'text-gray-400 dark:text-gray-600 cursor-not-allowed' 
-                    : (isActive ? 'text-ios-blue dark:text-blue-400' : 'text-gray-700 dark:text-gray-300 hover:text-ios-blue dark:hover:text-blue-400')
-                }
-            `}
-        >
-            <span className="text-xl mb-0.5">{icon}</span>
-            <span className="font-medium">{name}</span>
-        </button>
-    );
-};
-
-const NavBar = ({ currentScreen, onNavigate, selectedTrip }) => {
-    const isTripSelected = !!selectedTrip;
-
-    const navItems = [
-        { name: 'سفرها', screen: 'home', icon: '🏠', enabled: true },
-        { name: 'گزارش', screen: 'reports', icon: '📊', enabled: isTripSelected },
-        { name: 'تنظیمات', screen: 'settings', icon: '⚙️', enabled: true },
-        { name: 'درباره', screen: 'about', icon: 'ℹ️', enabled: true },
-    ];
-
-    const PlusButton = () => (
-        <button
-            onClick={() => onNavigate('plus')}
-            className={`
-                w-14 h-14 rounded-full -mt-6 shadow-xl shadow-ios-blue/50
-                flex items-center justify-center text-3xl transition-transform
-                transform hover:scale-105 active:scale-95 z-20 
-                !text-white border-4 border-white dark:border-[#1C1C1E] bg-white dark:bg-white
-            `}
-            aria-label="منوی اکشن"
-        >
-            ➕
-        </button>
-    );
-
-    return (
-        <nav className={`${COLORS.secondaryBg} shadow-2xl fixed bottom-0 left-0 right-0 z-40 border-t ${COLORS.separator} h-16`}>
-            <div className="grid grid-cols-5 items-end h-full pt-2">
-                {navItems.slice(0, 2).map(item => (
-                    <NavItem key={item.name} {...item} currentScreen={currentScreen} onNavigate={onNavigate} />
-                ))}
-                <div className="flex justify-center">
-                    <PlusButton />
+        // --- SplashScreen ---
+        const SplashScreen = ({ isVisible }) => (
+            isVisible ? (
+                <div className="fixed inset-0 flex items-center justify-center bg-ios-blue dark:bg-blue-400 text-white text-2xl font-bold z-50">
+                    در حال بارگذاری...
                 </div>
-                {navItems.slice(2).map(item => (
-                    <NavItem key={item.name} {...item} currentScreen={currentScreen} onNavigate={onNavigate} />
-                ))}
+            ) : null
+        );
+
+        // --- AboutScreen ---
+        const AboutScreen = () => (
+            <div className="p-4 pb-20 space-y-6">
+                <h1 className="text-3xl font-bold pt-4 pb-2">درباره ما</h1>
+                <div className={`${COLORS.secondaryBg} p-6 rounded-xl shadow-md border ${COLORS.separator} text-center`}>
+                    <p className="text-lg font-bold mb-4 text-ios-blue dark:text-blue-400">
+                        برنامه دستیار مالی سفرهای خارجی
+                    </p>
+                    <p className={COLORS.mutedText}>
+                        این برنامه با هدف مدیریت و پیگیری هزینه‌های ارزی سفر، به‌صورت یک وب‌اپلیکیشن مستقل (PWA) طراحی شده است.
+                    </p>
+                    <p className="mt-6 text-sm font-medium">
+                        نوشته شده با ❤️ توسط محمد صادقی کاجی
+                    </p>
+                </div>
             </div>
-        </nav>
-    );
-};
+        );
 
-// LoadingIndicator
-const LoadingIndicator = ({ message = "در حال بارگذاری..." }) => (
-    <div className="flex flex-col items-center justify-center h-full text-center p-6">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-ios-blue dark:border-blue-400 mb-3"></div>
-        <p className="font-medium">{message}</p>
-    </div>
-);
-
-// AboutScreen
-const AboutScreen = () => (
-    <div className="p-4 pb-20 space-y-6">
-        <h1 className="text-3xl font-bold pt-4 pb-2">درباره ما</h1>
-        <div className={`${COLORS.secondaryBg} p-6 rounded-xl shadow-md border ${COLORS.separator} text-center`}>
-            <p className="text-lg font-bold mb-4 text-ios-blue dark:text-blue-400">
-                برنامه دستیار مالی سفرهای خارجی
-            </p>
-            <p className={COLORS.mutedText}>
-                این برنامه با هدف مدیریت و پیگیری هزینه‌های ارزی سفر، به‌صورت یک وب‌اپلیکیشن مستقل (PWA) طراحی شده است.
-            </p>
-            <p className="mt-6 text-sm font-medium">
-                نوشته شده با ❤️ توسط محمد صادقی کاجی
-            </p>
-        </div>
-    </div>
-);
-
-// PWA Install Prompt
-const PWAInstallPrompt = ({ isVisible, onInstall, onDismiss }) => {
-    if (!isVisible) return null;
-    return (
-        <div className="fixed bottom-24 left-1/2 transform -translate-x-1/2 bg-ios-blue dark:bg-blue-500 text-white p-4 rounded-xl shadow-lg z-50 flex flex-col items-center space-y-2">
-            <p className="font-medium">💾 نصب اپلیکیشن روی دستگاه خود</p>
-            <div className="flex space-x-4 space-x-reverse">
-                <button onClick={onInstall} className="px-3 py-1 bg-white dark:bg-gray-800 text-ios-blue rounded-md font-bold">نصب</button>
-                <button onClick={onDismiss} className="px-3 py-1 border border-white rounded-md font-bold">رد</button>
+        // --- LoadingIndicator ---
+        const LoadingIndicator = ({ message = "در حال بارگذاری..." }) => (
+            <div className="flex flex-col items-center justify-center h-full text-center p-6">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-ios-blue dark:border-blue-400 mb-3"></div>
+                <p className="font-medium">{message}</p>
             </div>
-        </div>
-    );
-};
+        );
 
-// --- MAIN APP ---
-const App = () => {
-    const initialSettings = loadFromLocalStorage(LS_KEY_SETTINGS, { 
-        theme: 'light', 
-        autoDarkMode: true, 
-        rates: { 
-            'CNY': CURRENCY_MAP['چین'].defaultRate, 
-            'AED': CURRENCY_MAP['دبی'].defaultRate, 
-            'TRY': CURRENCY_MAP['ترکیه'].defaultRate 
-        }
-    });
+        // --- PlusButton ---
+        const PlusButton = ({ onClick }) => (
+            <button
+                onClick={onClick}
+                className={`
+                    bg-ios-blue dark:bg-blue-400 w-14 h-14 rounded-full -mt-6 shadow-xl flex items-center justify-center 
+                    text-3xl text-white transform hover:scale-105 active:scale-95 z-20 border-4 border-white dark:border-gray-800
+                `}
+            >
+                ➕
+            </button>
+        );
 
-    const [trips, setTrips] = React.useState(loadFromLocalStorage(LS_KEY_TRIPS, []));
-    const [expenses, setExpenses] = React.useState(loadFromLocalStorage(LS_KEY_EXPENSES, []));
-    const [theme, setTheme] = React.useState(initialSettings.theme);
-    const [autoDarkMode, setAutoDarkMode] = React.useState(initialSettings.autoDarkMode);
-    const [rates, setRates] = React.useState(initialSettings.rates);
-    const [selectedTripId, setSelectedTripId] = React.useState(null);
-    const [currentScreen, setCurrentScreen] = React.useState('home');
-    const [isSplashVisible, setIsSplashVisible] = React.useState(true);
-    const [showModal, setShowModal] = React.useState(null);
-    const [actionTripId, setActionTripId] = React.useState(null);
-    const [isLoading, setIsLoading] = React.useState(false);
-    const [deferredPrompt, setDeferredPrompt] = React.useState(null);
-    const [showInstallPrompt, setShowInstallPrompt] = React.useState(false);
-
-    const selectedTrip = React.useMemo(() => trips.find(t => t.id === selectedTripId), [trips, selectedTripId]);
-    const actionTrip = React.useMemo(() => trips.find(t => t.id === actionTripId), [trips, actionTripId]);
-
-    React.useEffect(() => {
-        if (!selectedTripId && trips.length > 0) {
-            setSelectedTripId(trips[0].id);
-        }
-    }, [trips, selectedTripId]);
-
-    React.useEffect(() => {
-        const handleBeforeInstallPrompt = (e) => {
-            e.preventDefault();
-            setDeferredPrompt(e);
-            const dismissed = loadFromLocalStorage(LS_KEY_INSTALL_DISMISSED, false);
-            if (!dismissed) setShowInstallPrompt(true);
+        // --- PWAInstallPrompt ---
+        const PWAInstallPrompt = ({ isVisible, onInstall, onDismiss }) => {
+            if (!isVisible) return null;
+            return (
+                <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-300 dark:border-gray-700 flex items-center space-x-4 space-x-reverse z-50">
+                    <span className="text-2xl">🧳</span>
+                    <div className="flex-1 text-sm font-medium">
+                        نصب برنامه دستیار مالی سفر
+                    </div>
+                    <button 
+                        className="bg-ios-blue text-white px-3 py-1 rounded-md"
+                        onClick={onInstall}
+                    >
+                        نصب
+                    </button>
+                    <button 
+                        className="text-gray-500 dark:text-gray-300 px-2"
+                        onClick={onDismiss}
+                    >
+                        ✕
+                    </button>
+                </div>
+            );
         };
-        const handleAppInstalled = () => {
-            setDeferredPrompt(null);
-            setShowInstallPrompt(false);
-            saveToLocalStorage(LS_KEY_INSTALL_DISMISSED, false);
+
+        // --- MAIN APP ---
+        const App = () => {
+            const initialSettings = loadFromLocalStorage(LS_KEY_SETTINGS, { 
+                theme: 'light', 
+                autoDarkMode: true, 
+                rates: { 'CNY': 1, 'AED': 1, 'TRY': 1 }
+            });
+
+            const [theme, setTheme] = useState(initialSettings.theme);
+            const [autoDarkMode, setAutoDarkMode] = useState(initialSettings.autoDarkMode);
+            const [trips, setTrips] = useState(loadFromLocalStorage(LS_KEY_TRIPS, []));
+            const [expenses, setExpenses] = useState(loadFromLocalStorage(LS_KEY_EXPENSES, []));
+            const [currentScreen, setCurrentScreen] = useState('home');
+            const [isSplashVisible, setIsSplashVisible] = useState(true);
+
+            // PWA
+            const [deferredPrompt, setDeferredPrompt] = useState(null);
+            const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+
+            // Theme effect
+            useEffect(() => {
+                if (autoDarkMode) {
+                    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                    setTheme(prefersDark ? 'dark' : 'light');
+                }
+                document.documentElement.classList.toggle('dark', theme === 'dark');
+            }, [theme, autoDarkMode]);
+
+            // Splash timeout
+            useEffect(() => { setTimeout(() => setIsSplashVisible(false), 1500); }, []);
+
+            // PWA listeners
+            useEffect(() => {
+                const handleBeforeInstallPrompt = (e) => {
+                    e.preventDefault();
+                    setDeferredPrompt(e);
+                    const dismissed = loadFromLocalStorage(LS_KEY_INSTALL_DISMISSED, false);
+                    if (!dismissed) setShowInstallPrompt(true);
+                };
+                const handleAppInstalled = () => {
+                    setDeferredPrompt(null);
+                    setShowInstallPrompt(false);
+                    saveToLocalStorage(LS_KEY_INSTALL_DISMISSED, false);
+                };
+                window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+                window.addEventListener('appinstalled', handleAppInstalled);
+                return () => {
+                    window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+                    window.removeEventListener('appinstalled', handleAppInstalled);
+                };
+            }, []);
+
+            const handleInstallClick = async () => {
+                if (!deferredPrompt) return;
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                console.log(`User response: ${outcome}`);
+                setDeferredPrompt(null);
+                setShowInstallPrompt(false);
+            };
+            const handleDismissInstall = () => {
+                saveToLocalStorage(LS_KEY_INSTALL_DISMISSED, true);
+                setShowInstallPrompt(false);
+            };
+
+            // --- Simple screen renderer ---
+            const renderContent = () => {
+                switch(currentScreen){
+                    case 'about': return <AboutScreen />;
+                    default: return <div className="p-6 text-center">🏠 صفحه اصلی</div>;
+                }
+            };
+
+            return (
+                <div className={`min-h-screen ${COLORS.tertiaryBg} ${COLORS.lightText} flex flex-col`} style={{ direction: 'rtl' }}>
+                    <SplashScreen isVisible={isSplashVisible} />
+
+                    {/* Header */}
+                    <header className={`${COLORS.secondaryBg} shadow-sm p-4 fixed top-0 left-0 right-0 z-30 border-b ${COLORS.separator}`}>
+                        <h1 className="text-xl font-bold text-center text-ios-blue dark:text-blue-400 h-10">
+                            مدیریت سفر
+                        </h1>
+                    </header>
+
+                    {/* Main */}
+                    <main className="pt-20 pb-16 flex-grow overflow-y-auto">{renderContent()}</main>
+
+                    {/* Bottom FAB */}
+                    <div className="fixed bottom-0 left-1/2 transform -translate-x-1/2 mb-6">
+                        <PlusButton onClick={() => alert("منوی اکشن")} />
+                    </div>
+
+                    {/* PWA Prompt */}
+                    <PWAInstallPrompt
+                        isVisible={showInstallPrompt}
+                        onInstall={handleInstallClick}
+                        onDismiss={handleDismissInstall}
+                    />
+                </div>
+            );
         };
-        window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>
